@@ -88,8 +88,14 @@ jobs:
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
           ./godot --version
 
+      # Godot 4.7.2 crashes on exit when a headless editor picks up a
+      # GDExtension for the first time (godotengine/godot#123511); listing
+      # the extension beforehand avoids it.
       - name: Import the project
-        run: ./godot --headless --import
+        run: |
+          mkdir -p .godot
+          echo "res://addons/nconsole/bin/nconsole.gdextension" > .godot/extension_list.cfg
+          ./godot --headless --import
 
       - name: Run the tests
         run: ./godot --headless --path . -s addons/nconsole/tests/run_tests.gd
