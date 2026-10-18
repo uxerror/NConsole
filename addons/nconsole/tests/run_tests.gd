@@ -10,7 +10,8 @@ var _current := ""
 
 func _initialize() -> void:
 	var tests := ["test_isa", "test_arithmetic", "test_addressing", "test_stack_and_calls",
-		"test_interrupts", "test_assembler_errors", "test_tiles_and_cartridge", "test_console", "test_screen", "test_input", "test_snake", "test_audio", "test_scroll_and_banks", "test_monitor", "test_hopper", "test_console_3d"]
+		"test_interrupts", "test_assembler_errors", "test_tiles_and_cartridge", "test_console", "test_screen", "test_input", "test_snake", "test_audio", "test_scroll_and_banks", "test_monitor", "test_hopper", "test_console_3d",
+		"test_save_ram", "test_save_state"]
 	var only := OS.get_environment("TEST_ONLY")
 	for t: String in tests:
 		if only.is_empty() or t in only.split(","):
@@ -952,3 +953,151 @@ table: .res 256, 3
 		instructions += (cpu.cycles - pc_before) / 4 # about 4 cycles each here
 	var secs := (Time.get_ticks_usec() - t) / 1000000.0
 	print("CPU: %.2f M cycles/s, about %.2f M instructions/s" % [(cpu.cycles - before) / secs / 1e6, instructions / secs / 1e6])
+
+
+const SRAM_TEST := """
+.title "Saver"
+.section sram
+best:   .res 2
+log:    .res 1000           ; 1002 bytes: a 1 KB save RAM
+.section ram
+beyond: .res 1
+.section rom
+reset:  ld a, best
+        add #1
+        st a, best
+        ld a, #7
+        st a, $6400         ; past the save RAM: lost
+        ld a, $6400
+        st a, beyond
+        halt
+.org $fffc
+        .word reset, reset
+"""
+
+
+func test_save_ram() -> void:
+	var asm := NCAssembler.new()
+	var cart := asm.assemble(SRAM_TEST, "saver.asm")
+	check(cart != null, "assembles: %s" % "\n".join(asm.errors))
+	if cart == null:
+		return
+	check_eq([cart.sram_size, cart.symbols.best, cart.symbols.log], [1024, 0x6000, 0x6002], "save RAM sized to what is used")
+	check_eq(NCCartridge.from_bytes(cart.to_bytes()).sram_size, 1024, "the .nc8 file keeps the size")
+	var c := NConsole.new()
+	c.insert(cart)
+	c.run_frame()
+	check_eq([c.cpu.peek(0x6000), c.cpu.peek(cart.symbols.beyond)], [1, 0], "save RAM written, nothing past it")
+	check(c.cpu.sram_dirty, "the write is noticed")
+	c.reset()
+	c.run_frame()
+	check_eq(c.cpu.peek(0x6000), 2, "a reset keeps the save RAM")
+	var kept: PackedByteArray = c.save_ram
+	check_eq([kept.size(), kept[0]], [1024, 2], "save_ram")
+	c.insert(cart)
+	check_eq(c.save_ram[0], 0, "a cartridge put in starts empty")
+	c.save_ram = kept
+	check(not c.cpu.sram_dirty, "restored save RAM is not a change")
+	c.run_frame()
+	check_eq(c.cpu.peek(0x6000), 3, "and the game finds it")
+	var plain := NConsole.new()
+	plain.insert(NCCartridge.new())
+	plain.cpu.write(0x6000, 5)
+	check_eq([plain.cpu.read(0x6000), plain.save_ram.size()], [0, 0], "no save RAM on a plain cartridge")
+	check(errors_of(".section sram\n.res $2001")[0].contains("save RAM ends at $7fff"), "too much save RAM")
+	check(errors_of(".section sram\n.byte 1")[0].contains("data in the sram section"), "no data in save RAM")
+	# The player keeps it in a file.
+	var path := "user://nconsole_saver.asm"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(SRAM_TEST)
+	f.close()
+	var dir := "user://nconsole_test_saves"
+	for round in 2:
+		var player := NConsolePlayer.new()
+		player.save_dir = dir
+		root.add_child(player)
+		player.load_cartridge(path)
+		player.console.run_frame()
+		check_eq(player.console.cpu.peek(0x6000), round + 1, "the player's save RAM, round %d" % round)
+		player.queue_free()
+		player.debugger.queue_free() # a view would have put these in the tree
+		player.stats.queue_free()
+		await process_frame
+	check(FileAccess.file_exists(dir.path_join("nconsole_saver.sav")), "the .sav file")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir.path_join("nconsole_saver.sav")))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func test_save_state() -> void:
+	var cart := NCAssembler.load_cartridge("res://addons/nconsole/games/hopper.asm")
+	if cart == null:
+		return
+	var c := NConsole.new()
+	c.insert(cart)
+	var pad_at := func(k: int) -> int:
+		return NConsole.BTN_RIGHT | (NConsole.BTN_A if k % 40 < 12 else 0) | (NConsole.BTN_B if k % 90 < 45 else 0)
+	for k in 20:
+		c.set_pad(0, NConsole.BTN_START if k == 10 else 0)
+		c.run_frame()
+	for k in 50:
+		c.set_pad(0, pad_at.call(k))
+		c.run_frame()
+	var state := c.save_state()
+	var play := func() -> Array:
+		var sound := PackedVector2Array()
+		for k in 120:
+			c.set_pad(0, pad_at.call(k + 50))
+			c.run_frame()
+			sound.append_array(c.sound)
+		return [c.cpu.memory(), c.video.image.get_data(), sound, c.cpu.pc, c.cpu.cycles, c.frame, c.scroll_x]
+	var first: Array = play.call()
+	check(c.load_state(state), "the state loads")
+	var again: Array = play.call()
+	for k in first.size():
+		check(first[k] == again[k], "the same play after loading: part %d" % k)
+	# Bad states change nothing.
+	var memory := c.cpu.memory()
+	check(not c.load_state(state.slice(0, state.size() - 1)), "a cut state")
+	check(not c.load_state(state + PackedByteArray([0])), "a state with extra bytes")
+	check(not c.load_state(PackedByteArray([1, 2, 3])), "not a state")
+	check_eq([c.cpu.memory() == memory, c.frame], [true, first[5]], "nothing changed")
+	var snake := NConsole.new()
+	snake.insert(NCAssembler.load_cartridge("res://addons/nconsole/games/snake.asm"))
+	check(not snake.load_state(state), "a state from another cartridge")
+	# Stopped in the middle of a frame.
+	var mid := NConsole.new()
+	mid.insert(cart)
+	mid.cpu.breakpoints[cart.symbols.reset] = true
+	mid.reset()
+	mid.run_frame()
+	mid.cpu.breakpoints.clear()
+	var stopped := mid.save_state()
+	mid.resume()
+	mid.run_frame()
+	var after := mid.cpu.memory()
+	mid.load_state(stopped)
+	mid.resume()
+	mid.run_frame()
+	check(mid.cpu.memory() == after, "a state saved in the middle of a frame")
+	# The player keeps one in a file.
+	var player := NConsolePlayer.new()
+	player.save_dir = "user://nconsole_test_states"
+	root.add_child(player)
+	check(not player.load_state(), "no state before one is saved")
+	player.load_cartridge("res://addons/nconsole/games/hopper.asm")
+	for k in 30:
+		player.console.run_frame()
+	var frame := player.console.frame
+	check(player.save_state(), "the player saves a state")
+	for k in 30:
+		player.console.run_frame()
+	check(player.load_state() and player.console.frame == frame, "and goes back to it")
+	var file := player.save_dir.path_join("hopper.state")
+	player.queue_free()
+	player.debugger.queue_free()
+	player.stats.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(file.get_base_dir()))
+

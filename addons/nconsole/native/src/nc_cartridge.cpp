@@ -3,6 +3,8 @@
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
+#include <algorithm>
+
 using namespace godot;
 
 namespace {
@@ -36,7 +38,7 @@ PackedByteArray NCCartridge::to_bytes() const {
 	out.push_back(VERSION);
 	out.push_back(get_prg_banks());
 	out.push_back(get_chr_banks());
-	out.push_back(0);
+	out.push_back(sram_size / 1024);
 	PackedByteArray name = title.to_ascii_buffer().slice(0, 24);
 	name.resize(24);
 	out.append_array(name);
@@ -57,13 +59,15 @@ Ref<NCCartridge> NCCartridge::from_bytes(const PackedByteArray &data) {
 	}
 	int banks = 2;
 	int tiles = 1;
+	int sram_kb = 0;
 	if (data[4] == 2) {
 		banks = data[5];
 		tiles = data[6];
+		sram_kb = data[7];
 	} else if (data[4] != 1) {
 		return Ref<NCCartridge>();
 	}
-	if (banks < 2 || banks > MAX_PRG_BANKS || tiles < 1 || tiles > MAX_CHR_BANKS) {
+	if (banks < 2 || banks > MAX_PRG_BANKS || tiles < 1 || tiles > MAX_CHR_BANKS || sram_kb > MAX_SRAM / 1024) {
 		return Ref<NCCartridge>();
 	}
 	const int64_t prg_end = HEADER + (int64_t)banks * BANK_SIZE;
@@ -75,7 +79,28 @@ Ref<NCCartridge> NCCartridge::from_bytes(const PackedByteArray &data) {
 	c->title = data.slice(8, 32).get_string_from_ascii();
 	c->prg = data.slice(HEADER, prg_end);
 	c->chr = data.slice(prg_end);
+	c->sram_size = sram_kb * 1024;
 	return c;
+}
+
+void NCCartridge::set_sram_size(int bytes) {
+	sram_size = std::clamp((bytes + 1023) / 1024 * 1024, 0, (int)MAX_SRAM);
+}
+
+int64_t NCCartridge::rom_hash() const {
+	// 64-bit FNV-1a over both ROMs and their sizes.
+	uint64_t h = 0xcbf29ce484222325ull;
+	auto add = [&h](uint8_t b) {
+		h = (h ^ b) * 0x100000001b3ull;
+	};
+	for (const PackedByteArray *rom : { &prg, &chr }) {
+		const uint8_t *p = rom->ptr();
+		for (int64_t k = 0; k < rom->size(); k++) {
+			add(p[k]);
+		}
+		add((uint8_t)(rom->size() / 1024));
+	}
+	return (int64_t)h;
 }
 
 Error NCCartridge::save(const String &path) const {
@@ -103,6 +128,10 @@ void NCCartridge::_bind_methods() {
 	ClassDB::bind_static_method("NCCartridge", D_METHOD("load_file", "path"), &NCCartridge::load_file);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "prg_banks", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "", "get_prg_banks");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "chr_banks", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "", "get_chr_banks");
+	ClassDB::bind_method(D_METHOD("get_sram_size"), &NCCartridge::get_sram_size);
+	ClassDB::bind_method(D_METHOD("set_sram_size", "bytes"), &NCCartridge::set_sram_size);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "sram_size"), "set_sram_size", "get_sram_size");
+	ClassDB::bind_method(D_METHOD("rom_hash"), &NCCartridge::rom_hash);
 
 #define NC_PROPERTY(type, name)                                                            \
 	ClassDB::bind_method(D_METHOD("_get_" #name), &NCCartridge::_get_##name);              \
@@ -125,4 +154,5 @@ void NCCartridge::_bind_methods() {
 	BIND_CONSTANT(TILE_BYTES);
 	BIND_CONSTANT(MAX_PRG_BANKS);
 	BIND_CONSTANT(MAX_CHR_BANKS);
+	BIND_CONSTANT(MAX_SRAM);
 }

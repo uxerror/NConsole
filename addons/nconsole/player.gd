@@ -4,7 +4,10 @@ extends Node
 ## [NConsoleScreen] or the 3D [NConsole3D]): 60 frames a second, the
 ## controllers, the sound through an AudioStreamGenerator, the picture in
 ## [member texture]. F2 the debugger, F3 how busy the CPU and the emulator
-## are, F5 reset.
+## are, F5 reset, F6 saves the console's state and F4 goes back to it.
+##
+## A cartridge's save RAM is kept in [member save_dir], as the cartridge's
+## file name with .sav; the saved state next to it with .state.
 ##
 ## The controllers are input actions, [code]nconsole_p1_up[/code] to
 ## [code]nconsole_p2_start[/code] (see [constant ACTIONS]). Those the
@@ -58,6 +61,8 @@ var texture := ImageTexture.create_from_image(console.video.image)
 var monitor := NCMonitor.new(console)
 var debugger := NConsoleDebugger.new(monitor)
 var stats := Label.new()
+## Where save RAM and saved states go.
+var save_dir := "user://nconsole"
 ## Microseconds the last frame took to emulate.
 var frame_usec := 0
 var _time := 0.0
@@ -66,6 +71,10 @@ var _playback: AudioStreamGeneratorPlayback
 ## Samples the sound buffer holds when full.
 var _capacity := 0
 var _refresh_in := 0
+var _save_name := ""
+var _show_stats := false
+var _notice := ""
+var _notice_left := 0.0
 
 
 func _init() -> void:
@@ -89,6 +98,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	flush_save_ram()
 	# Stop the stream first, or its playback outlives the player.
 	_playback = null
 	if _audio:
@@ -101,10 +111,79 @@ func load_cartridge(path: String) -> bool:
 	var cart := NCAssembler.load_cartridge(path)
 	if cart == null:
 		return false
+	flush_save_ram()
 	console.insert(cart)
+	_save_name = path.get_file().get_basename()
+	if cart.sram_size > 0 and FileAccess.file_exists(_save_path("sav")):
+		console.save_ram = FileAccess.get_file_as_bytes(_save_path("sav"))
 	monitor.refresh_labels()
 	_show_picture()
 	return true
+
+
+## Writes the save RAM to its file if the game changed it.
+func flush_save_ram() -> void:
+	if console.cartridge == null or console.cpu.sram_size == 0 or not console.cpu.sram_dirty:
+		return
+	if _write(_save_path("sav"), console.save_ram):
+		console.cpu.sram_dirty = false
+
+
+## Saves the console's state to the cartridge's .state file.
+func save_state() -> bool:
+	if console.cartridge == null:
+		return false
+	var ok := _write(_save_path("state"), console.save_state())
+	notify("state saved" if ok else "can't write " + _save_path("state"))
+	return ok
+
+
+## Goes back to the state in the cartridge's .state file.
+func load_state() -> bool:
+	if console.cartridge == null:
+		return false
+	var path := _save_path("state")
+	if not FileAccess.file_exists(path):
+		notify("no saved state")
+		return false
+	if not console.load_state(FileAccess.get_file_as_bytes(path)):
+		notify("the saved state is from another cartridge")
+		return false
+	_time = 0.0
+	_show_picture()
+	if debugger.visible:
+		debugger.refresh()
+	notify("state loaded")
+	return true
+
+
+## Shows [param text] over the picture for a moment.
+func notify(text: String) -> void:
+	_notice = text
+	_notice_left = 1.5
+	_update_stats()
+
+
+func _save_path(extension: String) -> String:
+	return save_dir.path_join(_save_name + "." + extension)
+
+
+func _write(path: String, data: PackedByteArray) -> bool:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_error("NConsole: can't write %s" % path)
+		return false
+	f.store_buffer(data)
+	return true
+
+
+func _update_stats() -> void:
+	if _notice_left > 0.0:
+		stats.text = _notice
+	elif _show_stats:
+		stats.text = "CPU %d%%  emulation %.1f ms" % [console.last_cycles * 100 / NConsole.CYCLES_PER_FRAME, frame_usec / 1000.0]
+	stats.visible = _notice_left > 0.0 or _show_stats
 
 
 ## The name of the action for [param button] ("up", "a", ...) on
@@ -163,6 +242,10 @@ func _show_picture() -> void:
 
 
 func _process(delta: float) -> void:
+	if _notice_left > 0.0:
+		_notice_left -= delta
+		if _notice_left <= 0.0:
+			_update_stats()
 	if console.cartridge == null:
 		return
 	if console.paused:
@@ -186,14 +269,15 @@ func _process(delta: float) -> void:
 			break
 		if _playback and _playback.get_frames_available() >= console.sound.size():
 			_playback.push_buffer(console.sound)
+		if console.frame % NConsole.FPS == 0:
+			flush_save_ram()
 	if ran:
 		_show_picture()
 		_refresh_in -= 1
 		if debugger.visible and _refresh_in <= 0:
 			debugger.refresh()
 			_refresh_in = 10
-		if stats.visible:
-			stats.text = "CPU %d%%  emulation %.1f ms" % [console.last_cycles * 100 / NConsole.CYCLES_PER_FRAME, frame_usec / 1000.0]
+		_update_stats()
 
 
 ## How fast to run, 1 being real time: a little faster while the sound
@@ -220,9 +304,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_F2:
 			toggle_debugger()
 		KEY_F3:
-			stats.visible = not stats.visible
+			_show_stats = not _show_stats
+			_update_stats()
+		KEY_F4:
+			load_state()
 		KEY_F5:
 			console.reset()
+		KEY_F6:
+			save_state()
 		_:
 			return
 	get_viewport().set_input_as_handled()

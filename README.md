@@ -4,8 +4,9 @@
 
 An 8-bit game console of our own, emulated inside Godot 4.7: the N8
 processor, video with tiles, sprites and scrolling, a four-channel sound
-chip, banked cartridges, an assembler, a machine-code debugger, and a 3D
-model of the console that plays the games on its screen. Two games come
+chip, banked cartridges with save RAM, save states, an assembler, a
+machine-code debugger, and a 3D model of the console that plays the games
+on its screen. Two games come
 with it, written in N8 assembly: Snake and Gem Hopper, a side-scroller.
 
 The console itself is a GDExtension in C++; the tools and views around it

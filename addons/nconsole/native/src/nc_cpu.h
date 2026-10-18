@@ -5,6 +5,7 @@
 //   $0200-$1FFF  RAM
 //   $2000-$2FFF  video RAM (see NCVideo); plain RAM to the CPU
 //   $3000-$30FF  I/O registers, handled by `io`
+//   $6000-$7FFF  the cartridge's save RAM, its first sram_size bytes
 //   $8000-$FFFF  cartridge ROM; writes are ignored
 //
 // Vectors at the top of ROM: $FFFA vblank, $FFFC reset, $FFFE brk.
@@ -54,6 +55,8 @@ public:
 	static constexpr int RAM_END = 0x3000;
 	static constexpr int VRAM_START = 0x2000;
 	static constexpr int IO_PAGE = 0x30;
+	static constexpr int SRAM_START = 0x6000;
+	static constexpr int MAX_SRAM = 0x2000;
 	static constexpr int ROM_START = 0x8000;
 	static constexpr int VEC_VBLANK = 0xFFFA;
 	static constexpr int VEC_RESET = 0xFFFC;
@@ -79,6 +82,8 @@ public:
 	void interrupt(int vector);
 	void vblank(bool irq);
 	int64_t run(int64_t budget);
+	int _get_sram_size() const { return sram_size; }
+	void _set_sram_size(int value);
 	void resume();
 	void record_trace();
 	void step();
@@ -87,6 +92,10 @@ public:
 	int a = 0, x = 0, y = 0, sp = 0xFF, pc = 0;
 	bool fn = false, fv = false, fi = true, fz = false, fc = false;
 	bool waiting = false, halted = false, vram_dirty = true;
+	// Bytes of save RAM at SRAM_START (0 to MAX_SRAM), and whether the
+	// program wrote to it since this was last cleared.
+	int sram_size = 0;
+	bool sram_dirty = false;
 	int64_t cycles = 0;
 	Ref<WeakRef> io;
 	// Takes precedence over io; the owner clears it before it goes.
@@ -114,6 +123,7 @@ public:
 	NC_ACCESSORS(bool, waiting)
 	NC_ACCESSORS(bool, halted)
 	NC_ACCESSORS(bool, vram_dirty)
+	NC_ACCESSORS(bool, sram_dirty)
 	NC_ACCESSORS(int64_t, cycles)
 	NC_ACCESSORS(Ref<WeakRef>, io)
 	NC_ACCESSORS(Dictionary, breakpoints)

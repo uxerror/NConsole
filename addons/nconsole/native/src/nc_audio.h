@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include "nc_state.h"
+
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_vector2_array.hpp>
 
@@ -43,6 +45,8 @@ public:
 	int status() const;
 	void write(int reg, int value, int sample);
 	PackedVector2Array mix(int count);
+	void save_state(NCStateWriter &w) const;
+	void load_state(NCStateReader &r);
 
 	int clock_hz = 1789773;
 	int sample_rate = 44100;

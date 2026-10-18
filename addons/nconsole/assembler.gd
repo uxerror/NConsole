@@ -13,8 +13,11 @@ extends RefCounted
 ## parentheses, unary - ~ < >.
 ##
 ## Directives:
-##   .section rom|ram|chr    rom starts at $8000, ram at $0200 (only
-##                           labels and .res), chr counts tiles
+##   .section rom|ram|sram|chr
+##                           rom starts at $8000, ram at $0200, sram (the
+##                           cartridge's save RAM, sized to what is used)
+##                           at $6000; ram and sram take only labels and
+##                           .res; chr counts tiles
 ##   .org expr               moves the current section
 ##   .byte expr|"text", ...  .word expr, ...   .res count[, fill]
 ##   .title "Name"
@@ -29,7 +32,7 @@ extends RefCounted
 ##   .chrbanks n             tile ROM size in sets of 256 tiles (1-16)
 ##   .chrbank n              tiles that follow go to set n
 
-const SECTION_START := {"rom": 0x8000, "ram": 0x0200, "chr": 0}
+const SECTION_START := {"rom": 0x8000, "ram": 0x0200, "sram": NCCpu.SRAM_START, "chr": 0}
 const REGISTERS: PackedStringArray = ["a", "x", "y", "sp", "f"]
 
 ## "file:line: message" for each problem found.
@@ -51,6 +54,7 @@ var _label_banks := {}
 var _bank := 0
 var _bank_pc := {}
 var _chr_bank := 0
+var _sram_end := 0
 var _emitted := false
 var _file := ""
 var _line := 0
@@ -97,6 +101,7 @@ func assemble(source: String, file_name: String = "main.asm") -> NCCartridge:
 		_bank = 0
 		_bank_pc = {}
 		_chr_bank = 0
+		_sram_end = NCCpu.SRAM_START
 		_emitted = false
 		_section = "rom"
 		_pc = SECTION_START.duplicate()
@@ -108,6 +113,7 @@ func assemble(source: String, file_name: String = "main.asm") -> NCCartridge:
 			return null
 	_cart.prg = _prg
 	_cart.chr = _chr
+	_cart.sram_size = _sram_end - NCCpu.SRAM_START
 	_cart.symbols = _symbols.duplicate()
 	_cart.labels = _labels.duplicate()
 	_cart.label_banks = _label_banks.duplicate()
@@ -252,7 +258,13 @@ func _directive(word: String, rest: String, lines: Array, k: int) -> int:
 			var fill: Variant = _eval(parts[1]) if parts.size() > 1 else 0
 			if count != null:
 				for n in int(count):
-					if _section == "ram":
+					if _section == "sram":
+						if _pc.sram >= NCCpu.SRAM_START + NCCpu.MAX_SRAM:
+							_error("save RAM ends at $%04x" % (NCCpu.SRAM_START + NCCpu.MAX_SRAM - 1))
+							break
+						_pc.sram += 1
+						_sram_end = maxi(_sram_end, _pc.sram)
+					elif _section == "ram":
 						_pc.ram += 1
 					else:
 						_emit(int(fill if fill != null else 0) & 0xFF)
@@ -342,8 +354,8 @@ func _emit(b: int) -> void:
 	if _section == "chr":
 		_error("data in the chr section; use .tile")
 		return
-	if _section == "ram":
-		_error("data in the ram section; use .res")
+	if _section == "ram" or _section == "sram":
+		_error("data in the %s section; use .res" % _section)
 		return
 	_emitted = true
 	var addr: int = _pc.rom

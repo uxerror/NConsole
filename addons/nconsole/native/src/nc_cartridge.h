@@ -6,10 +6,13 @@
 // where the vectors are. The smallest cartridge has 2 program banks
 // (32 KB) and 1 tile bank.
 //
+// A cartridge may also carry up to 8 KB of save RAM, kept while the
+// console is off (by its owner: see NConsole.save_ram), at $6000-$7FFF.
+//
 // The .nc8 file: a 32-byte header ("NC8" $1A, version, program banks,
-// tile banks, a reserved byte, a 24-byte title padded with zeros), then
-// the program ROM, then the tile ROM. Version 1 files (before banks) are
-// 32 KB + 8 KB.
+// tile banks, save RAM in KB (0-8), a 24-byte title padded with zeros),
+// then the program ROM, then the tile ROM. Version 1 files (before banks)
+// are 32 KB + 8 KB.
 
 #pragma once
 
@@ -33,12 +36,18 @@ public:
 	static constexpr int TILE_BYTES = 32;
 	static constexpr int MAX_PRG_BANKS = 32;
 	static constexpr int MAX_CHR_BANKS = 16;
+	static constexpr int MAX_SRAM = 0x2000;
 
 	NCCartridge();
 
 	void resize_banks(int prg_banks, int chr_banks);
 	int get_prg_banks() const { return prg.size() / BANK_SIZE; }
 	int get_chr_banks() const { return chr.size() / CHR_BANK_SIZE; }
+	int get_sram_size() const { return sram_size; }
+	// Rounded up to whole KB, at most MAX_SRAM.
+	void set_sram_size(int bytes);
+	// A checksum of the ROM, to tell cartridges apart.
+	int64_t rom_hash() const;
 	PackedByteArray bank(int n) const;
 	PackedByteArray to_bytes() const;
 	static Ref<NCCartridge> from_bytes(const PackedByteArray &data);
@@ -51,6 +60,7 @@ public:
 	Dictionary symbols; // labels and constants from the assembler
 	Dictionary labels; // only the labels (addresses), for disassembly
 	Dictionary label_banks; // the bank of labels in the window at $8000
+	int sram_size = 0;
 
 #define NC_ACCESSORS(ctype, name) \
 	ctype _get_##name() const { return name; } \

@@ -101,6 +101,7 @@ Read-modify-write on memory (`inc`, `dec`, shifts) costs 2 cycles more.
 | `$0200-$1FFF` | RAM |
 | `$2000-$2FFF` | video RAM |
 | `$3000-$30FF` | I/O registers |
+| `$6000-$7FFF` | the cartridge's save RAM, if it has some (up to 8 KB) |
 | `$8000-$BFFF` | cartridge ROM: the program bank chosen with PRGBANK |
 | `$C000-$FFFF` | cartridge ROM: always the last bank; writes are ignored |
 
@@ -172,7 +173,12 @@ cycles it really uses.
 
 `NConsolePlayer` runs a console in real time: 60 frames a second, two
 controllers, the sound, the picture as a texture. F2 the debugger, F3 CPU
-load and the emulator's time per frame, F5 reset.
+load and the emulator's time per frame, F5 reset, F6 saves the console's
+state and F4 goes back to it.
+
+A cartridge's save RAM goes to `user://nconsole/<file name>.sav` (once a
+second when the game has written to it, and when the player goes), the
+saved state to `<file name>.state` next to it; `save_dir` changes where.
 
 The controllers are input actions, `nconsole_p1_up` ... `nconsole_p1_start`
 and the same for `p2` (up, down, left, right, a, b, select, start). A
@@ -260,8 +266,11 @@ message: .byte "HELLO", 0
 
 - Numbers: `42`, `$2a`, `%101010`, `'c'`. Operators: `+ - * / % & | ^ << >> ~`
   and parentheses.
-- `.section rom|ram|chr`, `.org`, `.byte`, `.word`, `.res count[, fill]`,
+- `.section rom|ram|sram|chr`, `.org`, `.byte`, `.word`, `.res count[, fill]`,
   `.title "Name"`, `.include "file"`.
+- `.section sram`: variables in the cartridge's save RAM at `$6000`, like
+  `ram` (labels and `.res`). The cartridge gets as much save RAM as they
+  use, rounded up to whole KB.
 - `.tile [index]` in the chr section: the next 8 lines are rows of 8 pixels,
   hex digits `0`-`f` (`.` is 0). A label before it gets the tile index.
 - `.prgbanks n` (2-32, before any code), `.bank n`: code at `$8000-$BFFF`
@@ -276,8 +285,22 @@ the video chip sees. The CPU sees one switchable bank at `$8000` and the
 last bank at `$C000`, where the vectors and the code that switches banks
 belong. A switch costs microseconds, so games may do it often.
 
+A cartridge can also carry up to 8 KB of save RAM at `$6000-$7FFF`, for
+high scores and progress: a reset keeps it, and whoever runs the console
+keeps it between sessions (`console.save_ram`, with `cpu.sram_dirty` set
+when the game writes to it). `NConsolePlayer` does that with a file.
+
 `.nc8` files: a 32-byte header (`NC8` `$1A`, version 2, program banks, tile
-banks, a reserved byte, a 24-byte title), the program ROM, then the tile
+banks, save RAM in KB, a 24-byte title), the program ROM, then the tile
 ROM. Version 1 files (32 KB + 8 KB) still load.
 `NCCartridge.load_file` reads `.nc8`; `NCAssembler.load_cartridge` takes
 either `.nc8` or an `.asm` source, which it assembles.
+
+## Save states
+
+`console.save_state()` is the whole machine as bytes (CPU, RAM, the video
+and sound chips; not the ROM, which comes from the cartridge), and
+`console.load_state(bytes)` goes back to it: it returns false and changes
+nothing if the bytes aren't a state or are from another cartridge. A state
+can be taken in the middle of a frame, at a breakpoint; breakpoints and
+the trace are not part of it. A state is about 33 KB.

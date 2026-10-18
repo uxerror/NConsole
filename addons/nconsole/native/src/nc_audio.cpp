@@ -172,6 +172,60 @@ void NCAudio::frame() {
 	}
 }
 
+void NCAudio::save_state(NCStateWriter &w) const {
+	w.u8(enabled);
+	w.i32(lfsr);
+	for (const Channel &c : ch) {
+		w.i32(c.period);
+		w.u8(c.volume);
+		w.u8(c.level);
+		w.u8(c.duty);
+		w.u8(c.short_mode);
+		w.u8(c.shape);
+		w.u8(c.length);
+		w.u8(c.decay_count);
+		w.u8(c.playing);
+		w.f64(c.phase);
+	}
+	w.i32((int32_t)events.size());
+	for (const Event &e : events) {
+		w.i32(e.sample);
+		w.u8(e.reg);
+		w.u8(e.value);
+	}
+}
+
+void NCAudio::load_state(NCStateReader &r) {
+	enabled = r.u8();
+	lfsr = r.i32();
+	for (Channel &c : ch) {
+		c.period = r.i32() & 0x7FF;
+		c.volume = r.u8() & 15;
+		c.level = r.u8() & 15;
+		c.duty = r.u8() & 3;
+		c.short_mode = r.u8();
+		c.shape = r.u8();
+		c.length = r.u8() & 63;
+		c.decay_count = r.u8();
+		c.playing = r.u8();
+		c.phase = r.f64();
+		if (!(c.phase >= 0.0 && c.phase < 1.0)) {
+			c.phase = 0.0;
+		}
+	}
+	events.clear();
+	const int n = r.i32();
+	if (n < 0 || n > 1 << 16) {
+		r.failed = true;
+		return;
+	}
+	for (int k = 0; k < n && !r.failed; k++) {
+		const int sample = r.i32();
+		const int reg = r.u8();
+		events.push_back({ sample, reg, r.u8() });
+	}
+}
+
 void NCAudio::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset"), &NCAudio::reset);
 	ClassDB::bind_method(D_METHOD("status"), &NCAudio::status);

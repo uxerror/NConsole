@@ -19,6 +19,11 @@
 //   $30-$40     sound, see NCAudio
 //   $FF DEBUG   (write): a character for the debug log
 //
+// The cartridge's save RAM lives through a reset; whoever runs the console
+// keeps it between sessions (save_ram, and cpu.sram_dirty to know when).
+// save_state() is everything else too: CPU, RAM, video and sound
+// registers, to go back to with load_state() on the same cartridge.
+//
 // A debugger can stop a frame in the middle (a breakpoint or watched
 // write pauses the console), step it one instruction at a time, and
 // resume.
@@ -78,6 +83,12 @@ public:
 	void step_instruction();
 	void resume();
 	void render_now();
+	PackedByteArray get_save_ram() const;
+	void set_save_ram(const PackedByteArray &data);
+	PackedByteArray save_state() const;
+	// False (and nothing changed) if the state isn't one, or is from
+	// another cartridge.
+	bool load_state(const PackedByteArray &data);
 	// Controller 0 or 1 holds these buttons (BTN_* bits).
 	void set_pad(int index, int buttons);
 	int read_io(int reg) override;

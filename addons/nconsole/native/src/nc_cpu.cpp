@@ -39,6 +39,9 @@ int NCCpu::read(int addr) {
 	if (addr < RAM_END || addr >= ROM_START) {
 		return mem[addr];
 	}
+	if (addr >= SRAM_START && addr < SRAM_START + sram_size) {
+		return mem[addr];
+	}
 	if ((addr >> 8) == IO_PAGE && device) {
 		return device->read_io(addr & 0xFF);
 	}
@@ -60,6 +63,9 @@ void NCCpu::write(int addr, int value) {
 		if (addr >= VRAM_START) {
 			vram_dirty = true;
 		}
+	} else if (addr >= SRAM_START && addr < SRAM_START + sram_size) {
+		mem[addr] = value & 0xFF;
+		sram_dirty = true;
 	} else if ((addr >> 8) == IO_PAGE && device) {
 		device->write_io(addr & 0xFF, value & 0xFF);
 	} else if ((addr >> 8) == IO_PAGE && io.is_valid()) {
@@ -167,6 +173,10 @@ int64_t NCCpu::run(int64_t budget) {
 		}
 	}
 	return cycles - start;
+}
+
+void NCCpu::_set_sram_size(int value) {
+	sram_size = std::clamp(value, 0, (int)MAX_SRAM);
 }
 
 void NCCpu::resume() {
@@ -481,6 +491,8 @@ void NCCpu::_bind_methods() {
 	NC_PROPERTY(BOOL, waiting)
 	NC_PROPERTY(BOOL, halted)
 	NC_PROPERTY(BOOL, vram_dirty)
+	NC_PROPERTY(INT, sram_size)
+	NC_PROPERTY(BOOL, sram_dirty)
 	NC_PROPERTY(INT, cycles)
 	NC_PROPERTY(OBJECT, io)
 	NC_PROPERTY(DICTIONARY, breakpoints)
@@ -493,6 +505,8 @@ void NCCpu::_bind_methods() {
 	BIND_CONSTANT(RAM_END);
 	BIND_CONSTANT(VRAM_START);
 	BIND_CONSTANT(IO_PAGE);
+	BIND_CONSTANT(SRAM_START);
+	BIND_CONSTANT(MAX_SRAM);
 	BIND_CONSTANT(ROM_START);
 	BIND_CONSTANT(VEC_VBLANK);
 	BIND_CONSTANT(VEC_RESET);

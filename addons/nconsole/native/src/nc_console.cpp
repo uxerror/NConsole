@@ -1,8 +1,11 @@
 #include "nc_console.h"
 
+#include "nc_state.h"
+
 #include <godot_cpp/core/class_db.hpp>
 
 #include <algorithm>
+#include <cstring>
 
 using namespace godot;
 
@@ -24,12 +27,18 @@ NConsole::~NConsole() {
 void NConsole::insert(const Ref<NCCartridge> &cart) {
 	cartridge = cart;
 	video->load_tiles(cart.is_valid() ? cart->chr : PackedByteArray());
+	cpu->clear_memory();
+	cpu->_set_sram_size(cart.is_valid() ? cart->sram_size : 0);
+	cpu->sram_dirty = false;
 	reset();
 }
 
-// Power cycle: RAM cleared, ROM mapped, CPU through its reset vector.
+// Power cycle: RAM cleared (save RAM kept), ROM mapped, CPU through its
+// reset vector.
 void NConsole::reset() {
+	const PackedByteArray kept = get_save_ram();
 	cpu->clear_memory();
+	cpu->load_memory(NCCpu::SRAM_START, kept);
 	if (cartridge.is_valid()) {
 		cpu->load_memory(0xC000, cartridge->bank(cartridge->get_prg_banks() - 1));
 	}
@@ -104,6 +113,130 @@ void NConsole::resume() {
 void NConsole::render_now() {
 	video->render(cpu->memory_data(), vctrl & 1, vctrl & 2, bg_color, scroll_x, scroll_y, fixed_rows);
 	cpu->vram_dirty = false;
+}
+
+PackedByteArray NConsole::get_save_ram() const {
+	PackedByteArray out;
+	out.resize(cpu->sram_size);
+	for (int k = 0; k < cpu->sram_size; k++) {
+		out.set(k, cpu->peek(NCCpu::SRAM_START + k));
+	}
+	return out;
+}
+
+// Fills the save RAM from data; what it doesn't cover is zero.
+void NConsole::set_save_ram(const PackedByteArray &data) {
+	for (int k = 0; k < cpu->sram_size; k++) {
+		cpu->poke(NCCpu::SRAM_START + k, k < data.size() ? data[k] : 0);
+	}
+	cpu->sram_dirty = false;
+}
+
+namespace {
+const char STATE_MAGIC[4] = { 'N', 'C', 'S', 0x1A };
+constexpr int STATE_VERSION = 1;
+} // namespace
+
+PackedByteArray NConsole::save_state() const {
+	NCStateWriter w;
+	w.bytes(STATE_MAGIC, 4);
+	w.u8(STATE_VERSION);
+	w.i64(cartridge.is_valid() ? cartridge->rom_hash() : 0);
+	// The CPU, and memory below the ROM (the ROM comes from the cartridge).
+	w.u8(cpu->a);
+	w.u8(cpu->x);
+	w.u8(cpu->y);
+	w.u8(cpu->sp);
+	w.i32(cpu->pc);
+	w.u8(cpu->flags());
+	w.u8(cpu->waiting);
+	w.u8(cpu->halted);
+	w.i64(cpu->cycles);
+	w.bytes(cpu->memory_data(), NCCpu::ROM_START);
+	// The console.
+	w.i32(frame);
+	w.u8(vctrl);
+	w.u8(bg_color);
+	w.u8(scroll_x);
+	w.u8(scroll_y);
+	w.u8(fixed_rows);
+	w.u8(prg_bank);
+	w.u8(video->get_chr_bank());
+	w.u8(pads[0]);
+	w.u8(pads[1]);
+	w.i32(rng);
+	w.u8(in_frame);
+	w.i64(frame_start);
+	w.i64(left);
+	w.i64(last_cycles);
+	audio->save_state(w);
+	return w.out;
+}
+
+bool NConsole::load_state(const PackedByteArray &data) {
+	NCStateReader r(data);
+	char magic[4];
+	r.bytes(magic, 4);
+	if (r.failed || std::memcmp(magic, STATE_MAGIC, 4) != 0 || r.u8() != STATE_VERSION) {
+		return false;
+	}
+	if (cartridge.is_null() || r.i64() != cartridge->rom_hash()) {
+		return false;
+	}
+	// Read it all first, to change nothing if it's cut short.
+	const int a = r.u8(), x = r.u8(), y = r.u8(), sp = r.u8();
+	const int pc = r.i32() & 0xFFFF;
+	const int f = r.u8();
+	const bool waiting = r.u8(), halted = r.u8();
+	const int64_t cycles = r.i64();
+	PackedByteArray ram;
+	ram.resize(NCCpu::ROM_START);
+	r.bytes(ram.ptrw(), ram.size());
+	const int p_frame = r.i32() & 0xFFFF;
+	const int p_vctrl = r.u8(), p_bg = r.u8() & 15, p_sx = r.u8(), p_sy = r.u8(), p_fixed = r.u8() & 15;
+	const int p_bank = r.u8(), p_chr = r.u8(), pad0 = r.u8(), pad1 = r.u8();
+	const int p_rng = r.i32();
+	const bool p_in_frame = r.u8();
+	const int64_t p_frame_start = r.i64(), p_left = r.i64(), p_last = r.i64();
+	NCStateWriter backup;
+	audio->save_state(backup);
+	audio->load_state(r);
+	if (!r.done()) {
+		NCStateReader undo(backup.out);
+		audio->load_state(undo);
+		return false;
+	}
+
+	cpu->a = a;
+	cpu->x = x;
+	cpu->y = y;
+	cpu->sp = sp;
+	cpu->pc = pc;
+	cpu->set_flags(f);
+	cpu->waiting = waiting;
+	cpu->halted = halted;
+	cpu->cycles = cycles;
+	cpu->load_memory(0, ram);
+	cpu->load_memory(0xC000, cartridge->bank(cartridge->get_prg_banks() - 1));
+	map_bank(p_bank % cartridge->get_prg_banks());
+	frame = p_frame;
+	vctrl = p_vctrl;
+	bg_color = p_bg;
+	scroll_x = p_sx;
+	scroll_y = p_sy;
+	fixed_rows = p_fixed;
+	video->set_chr_bank(p_chr % cartridge->get_chr_banks());
+	pads.set(0, pad0);
+	pads.set(1, pad1);
+	rng = p_rng;
+	in_frame = p_in_frame;
+	frame_start = p_frame_start;
+	left = p_left;
+	last_cycles = p_last;
+	sound = PackedVector2Array();
+	cpu->sram_dirty = true; // the save RAM may differ from what was kept
+	render_now();
+	return true;
 }
 
 void NConsole::begin_frame() {
@@ -220,6 +353,11 @@ void NConsole::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("step_instruction"), &NConsole::step_instruction);
 	ClassDB::bind_method(D_METHOD("resume"), &NConsole::resume);
 	ClassDB::bind_method(D_METHOD("render_now"), &NConsole::render_now);
+	ClassDB::bind_method(D_METHOD("get_save_ram"), &NConsole::get_save_ram);
+	ClassDB::bind_method(D_METHOD("set_save_ram", "data"), &NConsole::set_save_ram);
+	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "save_ram", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_save_ram", "get_save_ram");
+	ClassDB::bind_method(D_METHOD("save_state"), &NConsole::save_state);
+	ClassDB::bind_method(D_METHOD("load_state", "data"), &NConsole::load_state);
 	ClassDB::bind_method(D_METHOD("set_pad", "index", "buttons"), &NConsole::set_pad);
 	ClassDB::bind_method(D_METHOD("read_io", "reg"), &NConsole::read_io);
 	ClassDB::bind_method(D_METHOD("write_io", "reg", "value"), &NConsole::write_io);
