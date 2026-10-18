@@ -171,8 +171,8 @@ cycles it really uses.
 
 ## Playing
 
-`NConsolePlayer` runs a console in real time: 60 frames a second, two
-controllers, the sound, the picture as a texture. F2 the debugger, F3 CPU
+`NConsolePlayer` runs a console in real time: 60 frames a second, the
+controller, the sound, the picture as a texture. F2 the debugger, F3 CPU
 load and the emulator's time per frame, F5 reset, F6 saves the console's
 state and F4 goes back to it.
 
@@ -180,14 +180,15 @@ A cartridge's save RAM goes to `user://nconsole/<file name>.sav` (once a
 second when the game has written to it, and when the player goes), the
 saved state to `<file name>.state` next to it; `save_dir` changes where.
 
-The controllers are input actions, `nconsole_p1_up` ... `nconsole_p1_start`
-and the same for `p2` (up, down, left, right, a, b, select, start). A
-project can define them in its Input Map; the ones it doesn't get defaults:
+The console has one controller: the input actions `nconsole_up`,
+`nconsole_down`, `nconsole_left`, `nconsole_right`, `nconsole_a`,
+`nconsole_b`, `nconsole_select` and `nconsole_start`. A project can define
+them in its Input Map; the ones it doesn't get defaults:
 
-| | controller 1 | controller 2 |
-|---|---|---|
-| keyboard | arrows or WASD, Z/J = A, X/K = B, Enter = start, Shift = select | |
-| gamepad | the first: d-pad or left stick, south button = A, west = B, Start, Back = select | the second, the same way |
+| | |
+|---|---|
+| keyboard | arrows or WASD, Z/J = A, X/K = B, Enter = start, Shift = select |
+| any gamepad | d-pad or left stick, south button = A, west = B, Start, Back = select |
 
 The emulation follows the sound card's clock rather than the frame timer:
 it runs up to half a percent faster or slower to keep about three frames
@@ -205,6 +206,19 @@ views use the player:
 The model needs these parts by name: `Display_Screen` (UVs: the top of the
 picture at the far edge), `Button_A`, `Button_B`, `DPad_Cross`, `Menu_Start`,
 `Menu_Select`, `Shell_PowerLED`, `Cartridge_LabelText`, `Cartridge_GRP`.
+Besides the console (`NConsole_ROOT`) the file has a desk (`Desk_ROOT`): a
+table whose top is level with the console's bottom, a mug, a notebook and
+a pencil, a plant and two more cartridges. `NConsole3D` shows it with
+`with_desk`; the demo does. The table's wood is a Godot material,
+`assets/wood.tres` (a noise texture through a color ramp), which the
+import puts in place of the model's `Wood`.
+
+With the desk, two cartridges lie behind the console by its port, with
+the games of `desk_games` (`""` for a blank one). Click one and it swaps
+with the one in the port: that one comes out and takes its place, the
+clicked one goes in and the console starts its game (with a blank, it stays
+off). `NConsoleDeskCartridges` does this; its `swap(place)` and the
+`swapped` signal are there for code too.
 
 ## Debugger
 

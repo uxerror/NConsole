@@ -9,12 +9,22 @@ extends Node3D
 ## The model (assets/NConsole.glb) lies flat, Y up, its front toward +Z.
 ## The parts it needs by name: Display_Screen, Button_A, Button_B,
 ## DPad_Cross, Menu_Start, Menu_Select, Shell_PowerLED,
-## Cartridge_LabelText, Cartridge_GRP.
+## Cartridge_LabelText, Cartridge_GRP. Next to the console (NConsole_ROOT)
+## the file has a desk for it to stand on (Desk_ROOT: a table, a mug, a
+## notebook, a plant, two more cartridges), shown with [member with_desk].
+## With the desk, clicking a cartridge on it swaps it into the console
+## ([NConsoleDeskCartridges], with the games of [member desk_games]).
 
 ## A .nc8 cartridge, or an .asm source to assemble on load.
 @export_file("*.nc8", "*.asm") var cartridge_path := ""
 ## How bright the screen glows (1 is the picture as it is).
 @export_range(0.0, 4.0) var screen_brightness := 1.0
+## Also show the desk from the model, its top level with the console's
+## bottom. Off, the console comes alone.
+@export var with_desk := false
+## The games of the two cartridges on the desk, left and right ("" for a
+## blank one).
+@export_file("*.nc8", "*.asm") var desk_games: PackedStringArray = []
 
 const MODEL := preload("res://addons/nconsole/assets/NConsole.glb")
 ## How far a pressed button goes down, in model units.
@@ -36,10 +46,16 @@ var _led: MeshInstance3D
 var _led_material := StandardMaterial3D.new()
 var _title: Label3D
 var _shown_buttons := -1
+## The cartridges to swap, with the desk.
+var desk: NConsoleDeskCartridges
 
 
 func _ready() -> void:
 	model = MODEL.instantiate()
+	var desk_root := model.get_node_or_null(^"Desk_ROOT")
+	if desk_root and not with_desk:
+		model.remove_child(desk_root)
+		desk_root.free()
 	add_child(model)
 	add_child(player)
 	var layer := CanvasLayer.new()
@@ -86,6 +102,10 @@ func _ready() -> void:
 		placeholder.get_parent().add_child(_title)
 	if not cartridge_path.is_empty():
 		insert(cartridge_path)
+	if with_desk:
+		desk = NConsoleDeskCartridges.new()
+		add_child(desk)
+		desk.setup(self, desk_games)
 	_update_parts()
 
 
@@ -95,6 +115,8 @@ func insert(path: String) -> bool:
 		return false
 	if _title:
 		_title.text = console.cartridge.title.to_upper()
+	if desk:
+		desk.port_changed()
 	_update_parts()
 	return true
 

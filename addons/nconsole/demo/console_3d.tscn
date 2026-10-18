@@ -14,14 +14,6 @@ tonemap_exposure = 0.85
 glow_enabled = true
 glow_hdr_threshold = 1.1
 
-[sub_resource type="StandardMaterial3D" id="table_mat"]
-albedo_color = Color(0.32156864, 0.21960784, 0.14901961, 1)
-roughness = 0.8
-
-[sub_resource type="PlaneMesh" id="table"]
-material = SubResource("table_mat")
-size = Vector2(80, 80)
-
 [node name="Console3DDemo" type="Node3D" unique_id=11461468]
 script = ExtResource("1")
 
@@ -32,13 +24,11 @@ environment = SubResource("env")
 light_energy = 0.75
 shadow_enabled = true
 
-[node name="Table" type="MeshInstance3D" parent="." unique_id=129804211]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.1, 0)
-mesh = SubResource("table")
-
 [node name="NConsole3D" type="Node3D" parent="." unique_id=1046759270]
 script = ExtResource("2")
 cartridge_path = "res://addons/nconsole/games/hopper.asm"
+with_desk = true
+desk_games = PackedStringArray("res://addons/nconsole/games/snake.asm", "")
 
 [node name="Pivot" type="Node3D" parent="." unique_id=948000114]
 

@@ -408,26 +408,25 @@ func test_input() -> void:
 	var stick := InputEventJoypadMotion.new()
 	stick.axis = JOY_AXIS_LEFT_X
 	stick.axis_value = -0.8
-	check(InputMap.event_is_action(key.call(KEY_Z), &"nconsole_p1_a"), "Z is A on controller 1")
-	check(InputMap.event_is_action(key.call(KEY_D), &"nconsole_p1_right"), "D is right")
-	check(not InputMap.event_is_action(key.call(KEY_Z), &"nconsole_p2_a"), "the keyboard is only controller 1")
-	check(InputMap.event_is_action(joy.call(0, JOY_BUTTON_START), &"nconsole_p1_start"), "the first gamepad's start")
-	check(InputMap.event_is_action(joy.call(1, JOY_BUTTON_X), &"nconsole_p2_b"), "the second gamepad is controller 2")
-	check(not InputMap.event_is_action(joy.call(1, JOY_BUTTON_X), &"nconsole_p1_b"), "and not controller 1")
-	check(InputMap.event_is_action(stick, &"nconsole_p1_left"), "the left stick")
-	Input.action_press(&"nconsole_p2_a")
-	Input.action_press(&"nconsole_p2_down")
-	check_eq(NConsolePlayer.pad_buttons(1), NConsole.BTN_A | NConsole.BTN_DOWN, "buttons from actions")
-	check_eq(NConsolePlayer.pad_buttons(0), 0, "the other controller")
-	Input.action_release(&"nconsole_p2_a")
-	Input.action_release(&"nconsole_p2_down")
+	check(InputMap.event_is_action(key.call(KEY_Z), &"nconsole_a"), "Z is A")
+	check(InputMap.event_is_action(key.call(KEY_D), &"nconsole_right"), "D is right")
+	check(InputMap.event_is_action(joy.call(0, JOY_BUTTON_START), &"nconsole_start"), "a gamepad's start")
+	check(InputMap.event_is_action(joy.call(1, JOY_BUTTON_X), &"nconsole_b"), "any gamepad works")
+	check(InputMap.event_is_action(stick, &"nconsole_left"), "the left stick")
+	check(not InputMap.has_action(&"nconsole_p2_a"), "one controller")
+	Input.action_press(&"nconsole_a")
+	Input.action_press(&"nconsole_down")
+	check_eq(NConsolePlayer.pad_buttons(), NConsole.BTN_A | NConsole.BTN_DOWN, "buttons from actions")
+	Input.action_release(&"nconsole_a")
+	Input.action_release(&"nconsole_down")
+	check_eq(NConsolePlayer.pad_buttons(), 0, "and let go")
 	# An action the project defines keeps its own events.
-	InputMap.erase_action(&"nconsole_p2_select")
-	InputMap.add_action(&"nconsole_p2_select")
-	InputMap.action_add_event(&"nconsole_p2_select", key.call(KEY_TAB))
+	InputMap.erase_action(&"nconsole_select")
+	InputMap.add_action(&"nconsole_select")
+	InputMap.action_add_event(&"nconsole_select", key.call(KEY_TAB))
 	NConsolePlayer.add_default_actions()
-	check_eq(InputMap.action_get_events(&"nconsole_p2_select").size(), 1, "the project's own action")
-	InputMap.erase_action(&"nconsole_p2_select")
+	check_eq(InputMap.action_get_events(&"nconsole_select").size(), 1, "the project's own action")
+	InputMap.erase_action(&"nconsole_select")
 	NConsolePlayer.add_default_actions()
 
 
@@ -908,6 +907,7 @@ func test_console_3d() -> void:
 	check(mat != null and mat.albedo_texture == c3d.player.texture, "the game shows on the model's screen")
 	check_eq(c3d._title.text, "GEM HOPPER", "its title on the cartridge label")
 	check(c3d._led_material.emission_enabled, "the power light is on")
+	check(c3d.model.get_node_or_null(^"Desk_ROOT") == null, "the console comes without the desk")
 	var a := c3d.model.find_child("Button_A", true, false) as Node3D
 	var dpad := c3d.model.find_child("DPad_Cross", true, false) as Node3D
 	var rest := a.position
@@ -924,6 +924,38 @@ func test_console_3d() -> void:
 		await process_frame
 	check(a.position == rest and dpad.rotation_degrees == Vector3.ZERO, "and they come back")
 	c3d.queue_free()
+	await process_frame
+	# With the desk, its cartridges swap into the console.
+	var d3d := NConsole3D.new()
+	d3d.with_desk = true
+	d3d.cartridge_path = "res://addons/nconsole/games/hopper.asm"
+	d3d.desk_games = PackedStringArray(["res://addons/nconsole/games/snake.asm", ""])
+	root.add_child(d3d)
+	var desk := d3d.desk
+	check(d3d.model.find_child("Table_Top", true, false) != null and desk != null, "with the desk")
+	if desk == null:
+		d3d.queue_free()
+		return
+	desk.seconds = 0.2
+	var titles := desk.cartridges.map(func(c: Dictionary) -> String: return (c.title as Label3D).text)
+	check_eq(titles, ["GEM HOPPER", "SNAKE", ""], "the cartridges' labels")
+	check_eq([desk.place_of(0), desk.place_of(1), desk.place_of(2)], [-1, 0, 1], "one in the port, two on the desk")
+	check(d3d.model.find_child("CartridgeSpare_A_GRP", true, false) == null, "the model's spares are replaced")
+	var snake_node: Node3D = desk.cartridges[1].node
+	var above := snake_node.global_position + Vector3(0, 10, 0)
+	check_eq(desk.cartridge_at(above, Vector3.DOWN), 1, "a ray from above finds the cartridge")
+	check_eq(desk.cartridge_at(above + Vector3(0, 0, 30), Vector3.DOWN), -1, "and misses beside it")
+	desk.swap(0)
+	desk.swap(1) # ignored while the first swap is under way
+	check(d3d.console.cartridge == null, "the old cartridge comes out first")
+	var went_in: String = await desk.swapped
+	check_eq([went_in, d3d.console.cartridge.title], ["res://addons/nconsole/games/snake.asm", "Snake"], "Snake goes in and plays")
+	check_eq([desk.place_of(0), desk.place_of(1)], [0, -1], "Gem Hopper takes Snake's place")
+	check(snake_node.position.is_equal_approx(NConsoleDeskCartridges.PORT), "Snake is in the port")
+	desk.swap(1)
+	await desk.swapped
+	check(d3d.console.cartridge == null and not d3d._led_material.emission_enabled, "with a blank one the console is off")
+	d3d.queue_free()
 	await process_frame
 
 

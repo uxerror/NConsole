@@ -2,19 +2,19 @@ class_name NConsolePlayer
 extends Node
 ## Runs an [NConsole] in real time for a view of it (the flat
 ## [NConsoleScreen] or the 3D [NConsole3D]): 60 frames a second, the
-## controllers, the sound through an AudioStreamGenerator, the picture in
+## controller, the sound through an AudioStreamGenerator, the picture in
 ## [member texture]. F2 the debugger, F3 how busy the CPU and the emulator
 ## are, F5 reset, F6 saves the console's state and F4 goes back to it.
 ##
 ## A cartridge's save RAM is kept in [member save_dir], as the cartridge's
 ## file name with .sav; the saved state next to it with .state.
 ##
-## The controllers are input actions, [code]nconsole_p1_up[/code] to
-## [code]nconsole_p2_start[/code] (see [constant ACTIONS]). Those the
-## project doesn't define get these: for controller 1 the keyboard (arrows
-## or WASD, Z/J for A, X/K for B, Enter for start, Shift for select) and
-## the first gamepad (d-pad or left stick, south button A, west button B,
-## start, back for select); for controller 2 the second gamepad.
+## The console has one controller: the input actions
+## [code]nconsole_up[/code] to [code]nconsole_start[/code] (see
+## [constant ACTIONS]). Those the project doesn't define get the keyboard
+## (arrows or WASD, Z/J for A, X/K for B, Enter for start, Shift for
+## select) and any gamepad (d-pad or left stick, south button A, west
+## button B, start, back for select).
 ##
 ## The emulation keeps pace with the sound card: it runs a little faster
 ## or slower (by at most half a percent, too little to hear) to keep the
@@ -27,7 +27,7 @@ signal picture_updated
 ## The debugger was opened or closed.
 signal debugger_toggled(open: bool)
 
-## The button bit of each action, without its "nconsole_pN_" prefix.
+## The button bit of each action, without its "nconsole_" prefix.
 const ACTIONS := {
 	"up": NConsole.BTN_UP, "down": NConsole.BTN_DOWN,
 	"left": NConsole.BTN_LEFT, "right": NConsole.BTN_RIGHT,
@@ -111,14 +111,29 @@ func load_cartridge(path: String) -> bool:
 	var cart := NCAssembler.load_cartridge(path)
 	if cart == null:
 		return false
+	insert_cartridge(cart, path.get_file().get_basename())
+	return true
+
+
+## Puts in [param cart], already loaded, and switches on. [param save_name]
+## names its save RAM and state files (the cartridge's file name).
+func insert_cartridge(cart: NCCartridge, save_name: String) -> void:
 	flush_save_ram()
 	console.insert(cart)
-	_save_name = path.get_file().get_basename()
+	_save_name = save_name
 	if cart.sram_size > 0 and FileAccess.file_exists(_save_path("sav")):
 		console.save_ram = FileAccess.get_file_as_bytes(_save_path("sav"))
 	monitor.refresh_labels()
 	_show_picture()
-	return true
+
+
+## Takes the cartridge out: the console is off, its screen dark.
+func eject() -> void:
+	flush_save_ram()
+	console.insert(null)
+	console.render_now()
+	monitor.refresh_labels()
+	_show_picture()
 
 
 ## Writes the save RAM to its file if the game changed it.
@@ -186,44 +201,42 @@ func _update_stats() -> void:
 	stats.visible = _notice_left > 0.0 or _show_stats
 
 
-## The name of the action for [param button] ("up", "a", ...) on
-## controller [param pad] (0 or 1).
-static func action_name(pad: int, button: String) -> StringName:
-	return StringName("nconsole_p%d_%s" % [pad + 1, button])
+## The name of the action for [param button] ("up", "a", ...).
+static func action_name(button: String) -> StringName:
+	return StringName("nconsole_" + button)
 
 
 ## Adds the default keys and gamepad buttons for the actions the project
 ## doesn't define itself.
 static func add_default_actions() -> void:
-	for pad in 2:
-		for button: String in ACTIONS:
-			var action := action_name(pad, button)
-			if InputMap.has_action(action):
-				continue
-			InputMap.add_action(action, 0.5)
-			if pad == 0:
-				for key: int in KEYS[button]:
-					var k := InputEventKey.new()
-					k.device = -1 # any keyboard
-					k.physical_keycode = key
-					InputMap.action_add_event(action, k)
-			var j := InputEventJoypadButton.new()
-			j.device = pad
-			j.button_index = JOY_BUTTONS[button]
-			InputMap.action_add_event(action, j)
-			if JOY_AXES.has(button):
-				var m := InputEventJoypadMotion.new()
-				m.device = pad
-				m.axis = JOY_AXES[button][0]
-				m.axis_value = JOY_AXES[button][1]
-				InputMap.action_add_event(action, m)
+	for button: String in ACTIONS:
+		var action := action_name(button)
+		if InputMap.has_action(action):
+			continue
+		InputMap.add_action(action, 0.5)
+		# Device -1: any keyboard, any gamepad.
+		for key: int in KEYS[button]:
+			var k := InputEventKey.new()
+			k.device = -1
+			k.physical_keycode = key
+			InputMap.action_add_event(action, k)
+		var j := InputEventJoypadButton.new()
+		j.device = -1
+		j.button_index = JOY_BUTTONS[button]
+		InputMap.action_add_event(action, j)
+		if JOY_AXES.has(button):
+			var m := InputEventJoypadMotion.new()
+			m.device = -1
+			m.axis = JOY_AXES[button][0]
+			m.axis_value = JOY_AXES[button][1]
+			InputMap.action_add_event(action, m)
 
 
-## The buttons held for controller [param pad], as controller bits.
-static func pad_buttons(pad: int) -> int:
+## The buttons held on the controller, as controller bits.
+static func pad_buttons() -> int:
 	var buttons := 0
 	for button: String in ACTIONS:
-		if Input.is_action_pressed(action_name(pad, button)):
+		if Input.is_action_pressed(action_name(button)):
 			buttons |= ACTIONS[button]
 	return buttons
 
@@ -251,9 +264,7 @@ func _process(delta: float) -> void:
 	if console.paused:
 		_time = 0.0
 		return
-	var typing := debugger.is_typing()
-	for pad in 2:
-		console.set_pad(pad, 0 if typing else pad_buttons(pad))
+	console.set_pad(0, 0 if debugger.is_typing() else pad_buttons())
 	_time = minf(_time + delta * _speed(), 3.0 / NConsole.FPS) # don't try to catch up after a stall
 	var ran := false
 	while _time >= 1.0 / NConsole.FPS:
