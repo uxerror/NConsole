@@ -76,6 +76,12 @@ func test_isa() -> void:
 	mem[3] = NCIsa.opcode("jnz", "", NCIsa.Mode.REL)
 	mem[4] = 0xFB
 	check_eq(NCIsa.disassemble(mem, 3), ["jnz $0000", 2], "relative target")
+	mem[5] = NCIsa.opcode("cmp", "", NCIsa.Mode.IMM)
+	mem[6] = 0xFA
+	mem[7] = NCIsa.opcode("jmp", "", NCIsa.Mode.ABS)
+	mem[8] = 0x84
+	mem[9] = 0xC6
+	check_eq([NCIsa.disassemble(mem, 5)[0], NCIsa.disassemble(mem, 7)[0]], ["cmp #$fa", "jmp $c684"], "hex starting with a letter")
 
 
 func test_arithmetic() -> void:

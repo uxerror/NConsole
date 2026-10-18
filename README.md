@@ -1,5 +1,7 @@
 # NConsole
 
+![The console playing Gem Hopper](docs/images/console.gif)
+
 An 8-bit game console of our own, emulated inside Godot 4.7: the N8
 processor, video with tiles, sprites and scrolling, a four-channel sound
 chip, banked cartridges, an assembler, a machine-code debugger, and a 3D
@@ -8,6 +10,15 @@ with it, written in N8 assembly: Snake and Gem Hopper, a side-scroller.
 
 The console itself is a GDExtension in C++; the tools and views around it
 are GDScript. All the details are in [addons/nconsole/README.md](addons/nconsole/README.md).
+
+| Gem Hopper | Snake |
+|---|---|
+| ![Gem Hopper](docs/images/hopper.gif) | ![Snake](docs/images/snake.png) |
+
+The debugger (F2): registers, the code at PC with your labels, and a
+machine-code monitor, here stopped at a breakpoint in Gem Hopper.
+
+![The debugger](docs/images/debugger.png)
 
 ## Using it in a project
 
@@ -36,6 +47,19 @@ cd ../../..
 godot --headless --import
 godot --headless --path . -s addons/nconsole/tests/run_tests.gd
 godot --path .                          # the console on a table
+```
+
+## Regenerating the images
+
+`tools/capture_media.gd` records everything in `docs/images` (a bot plays
+Gem Hopper; see the script for the modes):
+
+```sh
+MODE=3d STATIC=1 FRAMES=240 OUT=/tmp/c3d godot --path . --resolution 960x540 -s tools/capture_media.gd
+ffmpeg -framerate 20 -i /tmp/c3d/f%04d.png -vf "scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" docs/images/console.gif
+MODE=2d FRAMES=240 OUT=/tmp/c2d godot --headless --path . -s tools/capture_media.gd
+ffmpeg -framerate 20 -i /tmp/c2d/f%04d.png -vf "scale=480:360:flags=neighbor,split[a][b];[a]palettegen=max_colors=32[p];[b][p]paletteuse=dither=none" docs/images/hopper.gif
+MODE=debugger OUT=/tmp/dbg godot --path . --resolution 1280x720 -s tools/capture_media.gd
 ```
 
 ## Continuous integration

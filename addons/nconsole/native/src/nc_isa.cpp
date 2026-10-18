@@ -87,8 +87,11 @@ int reg_index(const char *name, size_t len) {
 	return NCIsa::NONE;
 }
 
+// Lowercase hex, zero-padded. (String::pad_zeros counts from the first
+// decimal digit, so it would turn "fa" into "fa00".)
 String hex(int value, int digits) {
-	return String::num_int64(value, 16).pad_zeros(digits);
+	String s = String::num_int64(value, 16);
+	return s.length() < digits ? String("0").repeat(digits - s.length()) + s : s;
 }
 
 } // namespace
