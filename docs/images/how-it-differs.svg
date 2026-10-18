@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 716" width="960" height="716" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Three ways to make an 8-bit game in Godot, and where NConsole differs</title>
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #1f2328; font-size: 22px; font-weight: 700; }
+    .subtitle { fill: #59636e; font-size: 14px; }
+    .tag { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+    .tag-muted { fill: #59636e; }
+    .tag-accent { fill: #0f7a6c; }
+    .card-muted { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1; }
+    .card-accent { fill: #ecfaf6; stroke: #0f9d8a; stroke-width: 2; }
+    .box { fill: #ffffff; stroke: #d1d9e0; stroke-width: 1; }
+    .box-accent { fill: #ffffff; stroke: #0f9d8a; stroke-width: 1.5; }
+    .machine { fill: #0f2a2e; stroke: #0f9d8a; stroke-width: 1.5; }
+    .chip { fill: #16424a; stroke: #2bb5a0; stroke-width: 1; }
+    .chip-t { fill: #e6fffa; font-size: 12.5px; font-weight: 600; }
+    .chip-s { fill: #9fd9cf; font-size: 11px; }
+    .machine-t { fill: #e6fffa; font-size: 14px; font-weight: 700; }
+    .machine-s { fill: #9fd9cf; font-size: 11.5px; }
+    .h { fill: #1f2328; font-size: 14px; font-weight: 600; }
+    .s { fill: #59636e; font-size: 12px; }
+    .note { fill: #59636e; font-size: 12.5px; }
+    .note-accent { fill: #0b5e53; font-size: 12.5px; font-weight: 600; }
+    .arrow { stroke: #8c959f; stroke-width: 1.5; fill: none; }
+    .arrow-accent { stroke: #0f9d8a; stroke-width: 1.5; fill: none; }
+    .head { fill: #8c959f; }
+    .head-accent { fill: #0f9d8a; }
+    .mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; }
+    .band { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1; }
+    .world-console { fill: #0f2a2e; }
+    .world-godot { fill: #eef1f5; }
+    .world-label-c { fill: #9fd9cf; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+    .world-label-g { fill: #59636e; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+    .pill-c { fill: #16424a; stroke: #2bb5a0; stroke-width: 1; }
+    .pill-g { fill: #ffffff; stroke: #d1d9e0; stroke-width: 1; }
+    .pill-ct { fill: #e6fffa; font-size: 12.5px; }
+    .pill-gt { fill: #1f2328; font-size: 12.5px; }
+    .port { stroke: #f0b429; stroke-width: 2; stroke-dasharray: 5 4; }
+    .port-t { fill: #b07d0a; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+    .cross { stroke: #cf222e; stroke-width: 2; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .title { fill: #f0f6fc; }
+      .subtitle, .s, .note, .tag-muted, .world-label-g { fill: #9198a1; }
+      .tag-accent { fill: #3fd8bf; }
+      .card-muted, .band { fill: #151b23; stroke: #3d444d; }
+      .card-accent { fill: #0b2622; stroke: #2bb5a0; }
+      .box { fill: #0d1117; stroke: #3d444d; }
+      .box-accent { fill: #0d1117; stroke: #2bb5a0; }
+      .h, .pill-gt { fill: #f0f6fc; }
+      .note-accent { fill: #6ee7d2; }
+      .arrow { stroke: #656c76; }
+      .head { fill: #656c76; }
+      .world-godot { fill: #1b222c; }
+      .pill-g { fill: #0d1117; stroke: #3d444d; }
+      .port-t { fill: #f0b429; }
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head-accent" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="716" rx="12"/>
+
+  <text class="title" x="32" y="46">Three ways to make an 8-bit game in Godot</text>
+  <text class="subtitle" x="32" y="70">Top: the game. Bottom: what you see. Only one of them is a machine of its own.</text>
+
+  <!-- 1. A retro-styled game -->
+  <rect class="card-muted" x="24" y="92" width="290" height="352" rx="10"/>
+  <text class="tag tag-muted" x="44" y="120">A RETRO-STYLED GAME</text>
+  <rect class="box" x="44" y="136" width="250" height="56" rx="7"/>
+  <text class="h" x="60" y="160">Game logic</text>
+  <text class="s" x="60" y="179">GDScript: any speed, any memory</text>
+  <path class="arrow" d="M169,192 L169,214" marker-end="url(#ah)"/>
+  <rect class="box" x="44" y="218" width="250" height="56" rx="7"/>
+  <text class="h" x="60" y="242">Godot</text>
+  <text class="s" x="60" y="261">sprites, physics, tilemaps</text>
+  <path class="arrow" d="M169,274 L169,296" marker-end="url(#ah)"/>
+  <rect class="box" x="44" y="300" width="250" height="56" rx="7"/>
+  <text class="h" x="60" y="324">Pixel-art look</text>
+  <text class="s" x="60" y="343">low resolution, a palette shader</text>
+  <text class="note" x="44" y="388">Looks 8-bit. The limits are a style:</text>
+  <text class="note" x="44" y="406">nothing stops the game from using</text>
+  <text class="note" x="44" y="424">more colors, sprites or CPU.</text>
+
+  <!-- 2. An emulator of an existing console -->
+  <rect class="card-muted" x="335" y="92" width="290" height="352" rx="10"/>
+  <text class="tag tag-muted" x="355" y="120">AN EMULATOR IN A GAME ENGINE</text>
+  <rect class="box" x="355" y="136" width="250" height="56" rx="7"/>
+  <text class="h" x="371" y="160">A ROM from the 80s</text>
+  <text class="s" x="371" y="179">someone else's game</text>
+  <path class="arrow" d="M480,192 L480,214" marker-end="url(#ah)"/>
+  <rect class="box" x="355" y="218" width="250" height="56" rx="7"/>
+  <text class="h" x="371" y="242">Emulator core</text>
+  <text class="s" x="371" y="261">NES, Game Boy, ... in GDScript or C</text>
+  <path class="arrow" d="M480,274 L480,296" marker-end="url(#ah)"/>
+  <rect class="box" x="355" y="300" width="250" height="56" rx="7"/>
+  <text class="h" x="371" y="324">Godot</text>
+  <text class="s" x="371" y="343">a window to show it in</text>
+  <text class="note" x="355" y="388">Real hardware rules, but borrowed:</text>
+  <text class="note" x="355" y="406">the machine and its games were</text>
+  <text class="note" x="355" y="424">designed decades ago by others.</text>
+
+  <!-- 3. NConsole -->
+  <rect class="card-accent" x="646" y="92" width="290" height="352" rx="10"/>
+  <text class="tag tag-accent" x="666" y="120">NCONSOLE</text>
+  <rect class="box-accent" x="666" y="136" width="250" height="46" rx="7"/>
+  <text class="h" x="682" y="156">Snake · Gem Hopper</text>
+  <text class="s mono" x="682" y="173">.asm → NCAssembler → .nc8</text>
+  <path class="arrow-accent" d="M791,182 L791,198" marker-end="url(#aha)"/>
+  <rect class="box-accent" x="666" y="202" width="250" height="46" rx="7"/>
+  <text class="h" x="682" y="222">N8 machine code</text>
+  <text class="s" x="682" y="239">its own CPU and instruction set</text>
+  <path class="arrow-accent" d="M791,248 L791,264" marker-end="url(#aha)"/>
+  <rect class="machine" x="666" y="268" width="250" height="118" rx="8"/>
+  <text class="machine-t" x="682" y="289">The machine</text>
+  <text class="machine-s" x="777" y="289">C++ GDExtension</text>
+  <rect class="chip" x="678" y="298" width="111" height="38" rx="5"/>
+  <text class="chip-t" x="687" y="314">N8 CPU</text>
+  <text class="chip-s" x="687" y="329">1.79 MHz</text>
+  <rect class="chip" x="795" y="298" width="111" height="38" rx="5"/>
+  <text class="chip-t" x="804" y="314">Video</text>
+  <text class="chip-s" x="804" y="329">160×120, 16 colors</text>
+  <rect class="chip" x="678" y="341" width="111" height="38" rx="5"/>
+  <text class="chip-t" x="687" y="357">Sound</text>
+  <text class="chip-s" x="687" y="372">4 channels</text>
+  <rect class="chip" x="795" y="341" width="111" height="38" rx="5"/>
+  <text class="chip-t" x="804" y="357">Cartridge</text>
+  <text class="chip-s" x="804" y="372">banks, save RAM</text>
+  <path class="arrow-accent" d="M791,386 L791,394" marker-end="url(#aha)"/>
+  <rect class="box-accent" x="666" y="396" width="250" height="34" rx="7"/>
+  <text class="h" x="682" y="418">Godot</text>
+  <text class="s" x="736" y="418">2D view, 3D console, debugger</text>
+
+  <!-- What makes it different -->
+  <text class="note-accent" x="24" y="478">Everything below the game is new and made for it, and the limits are real: 29,829 cycles a frame,</text>
+  <text class="note-accent" x="24" y="497">64 KB of address space, 32 sprites, 16 colors. A game that wants more has to be cleverer, not bigger.</text>
+
+  <!-- The cartridge port: the game never sees Godot -->
+  <rect class="band" x="24" y="516" width="912" height="176" rx="10"/>
+  <text class="h" x="44" y="544">The game never sees Godot</text>
+  <text class="s" x="244" y="544">It talks only to the console's chips, through memory and I/O registers.</text>
+
+  <rect class="world-console" x="44" y="558" width="520" height="100" rx="8"/>
+  <text class="world-label-c" x="58" y="577">THE CONSOLE'S WORLD</text>
+  <rect class="world-godot" x="586" y="558" width="330" height="100" rx="8"/>
+  <text class="world-label-g" x="600" y="577">GODOT'S WORLD</text>
+
+  <rect class="pill-c" x="58" y="592" width="110" height="44" rx="6"/>
+  <text class="pill-ct mono" x="70" y="610">hopper.asm</text>
+  <text class="chip-s" x="70" y="626">N8 assembly</text>
+  <path class="arrow-accent" d="M168,614 L184,614" marker-end="url(#aha)"/>
+  <rect class="pill-c" x="188" y="592" width="110" height="44" rx="6"/>
+  <text class="pill-ct mono" x="200" y="610">hopper.nc8</text>
+  <text class="chip-s" x="200" y="626">4 banks of ROM</text>
+  <path class="arrow-accent" d="M298,614 L314,614" marker-end="url(#aha)"/>
+  <rect class="pill-c" x="318" y="592" width="104" height="44" rx="6"/>
+  <text class="pill-ct" x="330" y="610">N8 CPU</text>
+  <text class="chip-s" x="330" y="626">runs its code</text>
+  <path class="arrow-accent" d="M422,614 L438,614" marker-end="url(#aha)"/>
+  <rect class="pill-c" x="442" y="592" width="108" height="44" rx="6"/>
+  <text class="pill-ct" x="454" y="610">video, sound</text>
+  <text class="chip-s" x="454" y="626">chips of its own</text>
+
+  <line class="port" x1="575" y1="550" x2="575" y2="664"/>
+  <text class="port-t" x="575" y="680" text-anchor="middle">ONLY PICTURE, SOUND AND BUTTONS CROSS</text>
+
+  <path class="arrow" d="M554,614 L602,614" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <rect class="pill-g" x="606" y="592" width="140" height="44" rx="6"/>
+  <text class="pill-gt" x="618" y="610">texture, AudioStream</text>
+  <text class="s" x="618" y="626">keyboard, gamepad</text>
+  <path class="arrow" d="M746,614 L762,614" marker-end="url(#ah)"/>
+  <rect class="pill-g" x="766" y="592" width="136" height="44" rx="6"/>
+  <text class="pill-gt" x="778" y="610">a 3D console</text>
+  <text class="s" x="778" y="626">on a desk, in a game</text>
+</svg>

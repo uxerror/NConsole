@@ -6,11 +6,17 @@ An 8-bit game console of our own, emulated inside Godot 4.7: the N8
 processor, video with tiles, sprites and scrolling, a four-channel sound
 chip, banked cartridges with save RAM, save states, an assembler, a
 machine-code debugger, and a 3D model of the console that plays the games
-on its screen. Two games come
-with it, written in N8 assembly: Snake and Gem Hopper, a side-scroller.
+on its screen. Two games come with it, written in N8 assembly: Snake and
+Gem Hopper, a side-scroller.
 
 The console itself is a GDExtension in C++; the tools and views around it
 are GDScript. All the details are in [addons/nconsole/README.md](addons/nconsole/README.md).
+
+It isn't a game made to look retro, nor an emulator of a console that
+already exists: the machine, its instruction set and its games are all new,
+and the games run on it under its real limits, without ever seeing Godot.
+
+![Three ways to make an 8-bit game in Godot: a retro-styled game, an emulator of an old console, and NConsole, a machine of its own](docs/images/how-it-differs.svg)
 
 | Gem Hopper | Snake |
 |---|---|
