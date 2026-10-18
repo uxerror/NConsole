@@ -170,10 +170,23 @@ cycles it really uses.
 
 ## Playing
 
-`NConsolePlayer` runs a console in real time: 60 frames a second, the
-keyboard as controller 1, the sound, the picture as a texture. Keys: arrows
-or WASD, Z/J = A, X/K = B, Enter = start, Shift = select; F2 the debugger,
-F3 CPU load and the emulator's time per frame, F5 reset. Two views use it:
+`NConsolePlayer` runs a console in real time: 60 frames a second, two
+controllers, the sound, the picture as a texture. F2 the debugger, F3 CPU
+load and the emulator's time per frame, F5 reset.
+
+The controllers are input actions, `nconsole_p1_up` ... `nconsole_p1_start`
+and the same for `p2` (up, down, left, right, a, b, select, start). A
+project can define them in its Input Map; the ones it doesn't get defaults:
+
+| | controller 1 | controller 2 |
+|---|---|---|
+| keyboard | arrows or WASD, Z/J = A, X/K = B, Enter = start, Shift = select | |
+| gamepad | the first: d-pad or left stick, south button = A, west = B, Start, Back = select | the second, the same way |
+
+The emulation follows the sound card's clock rather than the frame timer:
+it runs up to half a percent faster or slower to keep about three frames
+of sound queued, so the sound neither drops samples nor runs dry. Two
+views use the player:
 
 - `NConsoleScreen` (a `Control`): the flat picture, scaled by whole numbers.
   `demo/demo.tscn` (Snake), `demo/hopper.tscn` (Gem Hopper).

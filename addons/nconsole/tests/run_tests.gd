@@ -10,7 +10,7 @@ var _current := ""
 
 func _initialize() -> void:
 	var tests := ["test_isa", "test_arithmetic", "test_addressing", "test_stack_and_calls",
-		"test_interrupts", "test_assembler_errors", "test_tiles_and_cartridge", "test_console", "test_screen", "test_snake", "test_audio", "test_scroll_and_banks", "test_monitor", "test_hopper", "test_console_3d"]
+		"test_interrupts", "test_assembler_errors", "test_tiles_and_cartridge", "test_console", "test_screen", "test_input", "test_snake", "test_audio", "test_scroll_and_banks", "test_monitor", "test_hopper", "test_console_3d"]
 	var only := OS.get_environment("TEST_ONLY")
 	for t: String in tests:
 		if only.is_empty() or t in only.split(","):
@@ -389,6 +389,45 @@ func test_screen() -> void:
 	screen.queue_free()
 	await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func test_input() -> void:
+	NConsolePlayer.add_default_actions()
+	var key := func(code: int) -> InputEventKey:
+		var e := InputEventKey.new()
+		e.physical_keycode = code
+		e.pressed = true
+		return e
+	var joy := func(device: int, button: int) -> InputEventJoypadButton:
+		var e := InputEventJoypadButton.new()
+		e.device = device
+		e.button_index = button
+		e.pressed = true
+		return e
+	var stick := InputEventJoypadMotion.new()
+	stick.axis = JOY_AXIS_LEFT_X
+	stick.axis_value = -0.8
+	check(InputMap.event_is_action(key.call(KEY_Z), &"nconsole_p1_a"), "Z is A on controller 1")
+	check(InputMap.event_is_action(key.call(KEY_D), &"nconsole_p1_right"), "D is right")
+	check(not InputMap.event_is_action(key.call(KEY_Z), &"nconsole_p2_a"), "the keyboard is only controller 1")
+	check(InputMap.event_is_action(joy.call(0, JOY_BUTTON_START), &"nconsole_p1_start"), "the first gamepad's start")
+	check(InputMap.event_is_action(joy.call(1, JOY_BUTTON_X), &"nconsole_p2_b"), "the second gamepad is controller 2")
+	check(not InputMap.event_is_action(joy.call(1, JOY_BUTTON_X), &"nconsole_p1_b"), "and not controller 1")
+	check(InputMap.event_is_action(stick, &"nconsole_p1_left"), "the left stick")
+	Input.action_press(&"nconsole_p2_a")
+	Input.action_press(&"nconsole_p2_down")
+	check_eq(NConsolePlayer.pad_buttons(1), NConsole.BTN_A | NConsole.BTN_DOWN, "buttons from actions")
+	check_eq(NConsolePlayer.pad_buttons(0), 0, "the other controller")
+	Input.action_release(&"nconsole_p2_a")
+	Input.action_release(&"nconsole_p2_down")
+	# An action the project defines keeps its own events.
+	InputMap.erase_action(&"nconsole_p2_select")
+	InputMap.add_action(&"nconsole_p2_select")
+	InputMap.action_add_event(&"nconsole_p2_select", key.call(KEY_TAB))
+	NConsolePlayer.add_default_actions()
+	check_eq(InputMap.action_get_events(&"nconsole_p2_select").size(), 1, "the project's own action")
+	InputMap.erase_action(&"nconsole_p2_select")
+	NConsolePlayer.add_default_actions()
 
 
 func test_snake() -> void:

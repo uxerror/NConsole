@@ -1,6 +1,6 @@
 extends Node3D
 ## The 3D console on a table. Drag with the mouse to look around it, the
-## wheel to come closer; the keyboard plays (see NConsolePlayer).
+## wheel to come closer; the keyboard or a gamepad plays (see NConsolePlayer).
 
 @onready var _pivot: Node3D = $Pivot
 @onready var _camera: Camera3D = $Pivot/Camera3D

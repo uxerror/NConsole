@@ -1,10 +1,10 @@
 class_name NConsole3D
 extends Node3D
 ## The console as a 3D model: the game shows on its screen, the buttons,
-## the d-pad and start/select move with the keyboard ([NConsolePlayer]
-## has the keys), the power LED is lit while a cartridge is in, and the
-## cartridge's label carries the game's title. F2 opens the debugger over
-## the view.
+## the d-pad and start/select move with controller 1 ([NConsolePlayer]
+## has the keys and gamepads), the power LED is lit while a cartridge is
+## in, and the cartridge's label carries the game's title. F2 opens the
+## debugger over the view.
 ##
 ## The model (assets/NConsole.glb) lies flat, Y up, its front toward +Z.
 ## The parts it needs by name: Display_Screen, Button_A, Button_B,
