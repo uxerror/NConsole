@@ -28,7 +28,7 @@ shadow_enabled = true
 script = ExtResource("2")
 cartridge_path = "res://addons/nconsole/games/hopper.asm"
 with_desk = true
-desk_games = PackedStringArray("res://addons/nconsole/games/snake.asm", "")
+desk_games = PackedStringArray("res://addons/nconsole/games/snake.asm", "res://addons/nconsole/games/raycast.asm")
 
 [node name="Pivot" type="Node3D" parent="." unique_id=948000114]
 

@@ -11,7 +11,7 @@ var _current := ""
 func _initialize() -> void:
 	var tests := ["test_isa", "test_arithmetic", "test_addressing", "test_stack_and_calls",
 		"test_interrupts", "test_assembler_errors", "test_tiles_and_cartridge", "test_console", "test_screen", "test_input", "test_snake", "test_audio", "test_scroll_and_banks", "test_monitor", "test_hopper", "test_console_3d",
-		"test_save_ram", "test_save_state"]
+		"test_save_ram", "test_save_state", "test_raycast"]
 	var only := OS.get_environment("TEST_ONLY")
 	for t: String in tests:
 		if only.is_empty() or t in only.split(","):
@@ -1132,4 +1132,47 @@ func test_save_state() -> void:
 	await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(file.get_base_dir()))
+
+
+func test_raycast() -> void:
+	var cart := NCAssembler.load_cartridge("res://addons/nconsole/games/raycast.asm")
+	check(cart != null and cart.title == "Raycaster", "the raycaster assembles")
+	if cart == null:
+		return
+	var c := NConsole.new()
+	c.insert(cart)
+	var s: Dictionary = cart.symbols
+	var pos := func(name: String) -> float: return (c.cpu.peek(s[name + "_h"]) * 256 + c.cpu.peek(s[name + "_l"])) / 256.0
+	var frames := func(n: int, pad: int = 0) -> void:
+		for k in n:
+			c.set_pad(0, pad)
+			c.run_frame()
+	frames.call(10)
+	# Looking east down the first room: wall tiles on both sides of the
+	# horizon, the far wall light, ceiling at the top, floor at the bottom.
+	var tile := func(col: int, row: int) -> int:
+		var half := 16 if c.scroll_y == 128 else 0
+		return c.cpu.peek(0x2000 + (row + half) * 32 + col)
+	check(c.scroll_y == 0 or c.scroll_y == 128, "a half of the map is shown")
+	check_eq([tile.call(10, 3), tile.call(10, 14)], [0, 81], "ceiling above, floor below")
+	check(tile.call(10, 8) > 0 and tile.call(10, 8) < 81 and tile.call(10, 9) > 81 and tile.call(10, 9) < 162, "a wall at the horizon")
+	check_eq(c.cpu.peek(0x2000 + 32 + 1), 130 + "R".unicode_at(0), "the status bar")
+	frames.call(4)
+	check(c.cpu.peek(s.frames) <= 2, "a picture in two frames or less: %d" % c.cpu.peek(s.frames))
+	# Walking: forward, then into the wall ahead, which stops it.
+	var x0: float = pos.call("px")
+	frames.call(30, NConsole.BTN_UP)
+	var x1: float = pos.call("px")
+	check(x1 > x0 + 1.0 and is_equal_approx(pos.call("py"), 2.5), "walks east: %.2f -> %.2f" % [x0, x1])
+	frames.call(300, NConsole.BTN_UP | NConsole.BTN_B)
+	check(pos.call("px") <= 15.0 - 0.25 + 0.01 and pos.call("px") > 14.0, "stops at the wall: %.2f" % pos.call("px"))
+	# Turning: a full turn is 256 / 2 frames.
+	var a: int = c.cpu.peek(s.pa)
+	frames.call(32, NConsole.BTN_RIGHT)
+	check_eq((c.cpu.peek(s.pa) - a) & 255, 64, "a quarter turn right")
+	# Strafing: facing south now, A with right steps west, not turning.
+	var x2: float = pos.call("px")
+	frames.call(10, NConsole.BTN_A | NConsole.BTN_RIGHT)
+	check(pos.call("px") < x2 - 0.3 and c.cpu.peek(s.pa) == (a + 64) & 255, "strafes west: %.2f -> %.2f" % [x2, pos.call("px")])
+	check(not c.cpu.halted, "still running")
 

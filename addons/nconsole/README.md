@@ -263,6 +263,20 @@ when A is let go and a run on B. A two-voice note player plays the melody on
 pulse 1 and the bass on the triangle. `demo/hopper.tscn` plays it; a frame of
 play takes about 3,300 of the 29,829 cycles.
 
+`games/raycast.asm`: Raycaster, a maze walked in first person, a prototype
+with no enemies yet. Up and down walk, left and right turn (sideways with
+A held), B runs. Each picture casts 40 rays, 1.4 degrees apart, stepping
+each from cell edge to cell edge until it meets a wall; the multiplies are
+quarter squares from a table, and the wall's height comes from a table by
+distance, one for each ray's angle, which also undoes the fisheye. The
+video chip has only tiles, so the walls are tiles too: each holds two rays
+4 pixels wide, with 0 to 8 pixels of wall in 2-pixel steps, light or dark
+by the wall's side (162 tiles in all). Pictures go into one half of the map
+while the other is shown, and SCROLLY flips them. A picture takes one or
+two frames: 30 to 60 a second. `demo/raycast.tscn` plays it. The tables and
+tiles are made by `tools/make_raycast_tables.gd` into
+`games/raycast_tables.asm`.
+
 ## The assembler
 
 ```asm
