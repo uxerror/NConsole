@@ -2,6 +2,7 @@
 
 #include <godot_cpp/core/class_db.hpp>
 
+#include <algorithm>
 #include <cstring>
 
 using namespace godot;
@@ -174,10 +175,35 @@ void NCCpu::resume() {
 
 void NCCpu::record_trace() {
 	if (trace_size > 0) {
-		trace.push_back(pc);
-		if (trace.size() > trace_size) {
-			trace = trace.slice(trace.size() - trace_size);
-		}
+		trace_ring[trace_at] = pc;
+		trace_at = (trace_at + 1) % trace_size;
+		trace_count = std::min(trace_count + 1, trace_size);
+	}
+}
+
+void NCCpu::_set_trace_size(int value) {
+	const PackedInt32Array kept = _get_trace();
+	trace_size = std::max(0, value);
+	trace_ring.assign(trace_size, 0);
+	_set_trace(kept);
+}
+
+PackedInt32Array NCCpu::_get_trace() const {
+	PackedInt32Array out;
+	out.resize(trace_count);
+	for (int k = 0; k < trace_count; k++) {
+		out.set(k, trace_ring[(trace_at - trace_count + k + trace_size) % trace_size]);
+	}
+	return out;
+}
+
+// Keeps the newest trace_size entries of value.
+void NCCpu::_set_trace(const PackedInt32Array &value) {
+	trace_at = trace_count = 0;
+	for (int64_t k = std::max<int64_t>(0, value.size() - trace_size); k < value.size(); k++) {
+		trace_ring[trace_at] = value[k];
+		trace_at = (trace_at + 1) % trace_size;
+		trace_count++;
 	}
 }
 
@@ -205,7 +231,7 @@ void NCCpu::step() {
 	step_inline();
 }
 
-// One instruction: a line-by-line port of NCCpu.step in cpu.gd.
+// One instruction.
 inline void NCCpu::step_inline() {
 	const int opc = mem[pc];
 	const int mode = isa.mode[opc];

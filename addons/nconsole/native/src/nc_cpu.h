@@ -25,6 +25,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace godot {
 
@@ -95,7 +96,6 @@ public:
 	String stop_reason;
 	int watch_hit = -1;
 	int trace_size = 0;
-	PackedInt32Array trace;
 
 	// Accessors for the properties above (bound in _bind_methods).
 #define NC_ACCESSORS(ctype, name) \
@@ -120,9 +120,12 @@ public:
 	NC_ACCESSORS(Dictionary, watches)
 	NC_ACCESSORS(String, stop_reason)
 	NC_ACCESSORS(int, watch_hit)
-	NC_ACCESSORS(int, trace_size)
-	NC_ACCESSORS(PackedInt32Array, trace)
 #undef NC_ACCESSORS
+	int _get_trace_size() const { return trace_size; }
+	void _set_trace_size(int value);
+	// The last trace_size PCs, oldest first.
+	PackedInt32Array _get_trace() const;
+	void _set_trace(const PackedInt32Array &value);
 
 protected:
 	static void _bind_methods();
@@ -131,6 +134,10 @@ private:
 	std::array<uint8_t, 0x10000> mem{};
 	const NCIsa::Decoded &isa;
 	bool resume_ = false;
+	// A ring of trace_size PCs: the next goes at trace_at.
+	std::vector<int32_t> trace_ring;
+	int trace_at = 0;
+	int trace_count = 0;
 
 	int reg(int r) const;
 	void set_reg(int r, int v);

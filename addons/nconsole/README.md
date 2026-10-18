@@ -2,7 +2,7 @@
 
 A small 8-bit game console that runs inside Godot: its own processor (N8),
 memory, cartridges, video and controller, and an assembler to write games
-for it. It is independent of AgoraOS.
+for it.
 
 ## How it is built
 
@@ -18,7 +18,7 @@ uses it is GDScript calling its classes.
 | `NCCartridge` the cartridge and `.nc8` | `NConsoleScreen` (2D), `NConsole3D` (the model) |
 
 Build the extension before opening the project (once, and again after
-changing `native/src`):
+changing `native/src`); without it the console's classes don't exist:
 
 ```sh
 cd addons/nconsole/native
@@ -228,8 +228,7 @@ in; collisions read the map. Beetles walk, turn at walls and edges, and can
 be stomped; the hero's vertical speed is 8.8 fixed point, with a lower jump
 when A is let go and a run on B. A two-voice note player plays the melody on
 pulse 1 and the bass on the triangle. `demo/hopper.tscn` plays it; a frame of
-play takes about 3,300 of the 29,829 cycles. A frame of play uses a few hundred
-cycles of the 29,829; 60 frames emulate in about 3 ms.
+play takes about 3,300 of the 29,829 cycles.
 
 ## The assembler
 

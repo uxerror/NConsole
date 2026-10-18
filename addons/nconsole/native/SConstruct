@@ -7,7 +7,7 @@
 #   scons                            # debug build for this machine
 #   scons target=template_release    # for exported games
 #
-# Without a build the console runs its GDScript processor.
+# Without a build there is no console: its classes all come from here.
 
 import os
 

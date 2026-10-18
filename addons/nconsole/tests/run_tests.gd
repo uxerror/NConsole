@@ -445,16 +445,16 @@ func test_snake() -> void:
 	frames.call(8)
 	c.set_pad(0, 0)
 	check_eq([c.cpu.peek(sym.body_x + c.cpu.peek(sym.head)), c.cpu.peek(sym.body_y + c.cpu.peek(sym.head))], [11, 6], "steered")
+	var t := Time.get_ticks_usec()
 	frames.call(8 * 10)
+	var play_usec := Time.get_ticks_usec() - t
 	check_eq([c.cpu.peek(sym.state), text.call(5, 8, 9)], [2, "GAME OVER"], "hit the wall")
 	frames.call(1)
 	check(c.audio.status() & 0b1010 == 0b1010, "crash and tune: %x" % c.audio.status())
 	frames.call(60)
 	check_eq(c.audio.status() & 0b1010, 0, "both end")
 	check(worst[0] < NConsole.CYCLES_PER_FRAME / 2, "the game needs a fraction of the CPU: at most %d of %d cycles" % [worst[0], NConsole.CYCLES_PER_FRAME])
-	var t := Time.get_ticks_usec()
-	frames.call(60)
-	print("snake: worst frame %d cycles; 60 frames emulated in %.1f ms" % [worst[0], (Time.get_ticks_usec() - t) / 1000.0])
+	print("snake: worst frame %d cycles; 80 frames of play emulated in %.1f ms" % [worst[0], play_usec / 1000.0])
 
 
 ## Rising zero crossings in [param samples], left channel.
@@ -715,6 +715,17 @@ func test_monitor() -> void:
 	var trace := mon.command("t 3").split("\n")
 	check(trace.size() == 3 and trace[2].contains("%04x" % c.cpu.trace[c.cpu.trace.size() - 1]), "trace: %s" % trace)
 	mon.command("t off")
+	# The trace keeps the newest trace_size PCs, oldest first.
+	var ring := NCCpu.new()
+	ring.trace_size = 4
+	for k in 10:
+		ring.pc = k
+		ring.record_trace()
+	check_eq(Array(ring.trace), [6, 7, 8, 9], "the trace wraps around")
+	ring.trace_size = 2
+	check_eq(Array(ring.trace), [8, 9], "a smaller trace keeps the newest")
+	ring.trace = PackedInt32Array([1, 2, 3])
+	check_eq(Array(ring.trace), [2, 3], "setting the trace")
 	# Stepping through wait goes on into the next frame.
 	var frame := c.frame
 	for k in 2000:
