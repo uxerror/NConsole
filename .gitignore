@@ -1,0 +1,14 @@
+# Godot
+.godot/
+/android/
+
+# The native build: each machine or CI run makes its own
+addons/nconsole/bin/
+addons/nconsole/native/.sconsign.dblite
+addons/nconsole/native/.scons-cache/
+addons/nconsole/native/src/*.os
+addons/nconsole/native/src/*.obj
+
+# CI packaging
+/dist/
+*.zip
