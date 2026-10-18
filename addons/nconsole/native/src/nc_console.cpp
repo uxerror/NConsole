@@ -228,10 +228,19 @@ void NConsole::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_get_" #name), &NConsole::_get_##name);               \
 	ClassDB::bind_method(D_METHOD("_set_" #name, "value"), &NConsole::_set_##name);    \
 	ADD_PROPERTY(PropertyInfo(Variant::type, #name, PROPERTY_HINT_RESOURCE_TYPE, hint), "_set_" #name, "_get_" #name);
-	NC_PROPERTY(OBJECT, cpu, "NCCpu")
-	NC_PROPERTY(OBJECT, video, "NCVideo")
-	NC_PROPERTY(OBJECT, audio, "NCAudio")
-	NC_PROPERTY(OBJECT, cartridge, "NCCartridge")
+	// The parts are objects the console makes itself: not saved, not shown
+	// in the inspector. Without PROPERTY_USAGE_NONE the editor would keep
+	// a console's parts as "default values" until after the extension is
+	// unloaded, and crash freeing them on exit.
+#define NC_PART(name, type)                                                              \
+	ClassDB::bind_method(D_METHOD("_get_" #name), &NConsole::_get_##name);               \
+	ClassDB::bind_method(D_METHOD("_set_" #name, "value"), &NConsole::_set_##name);    \
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, #name, PROPERTY_HINT_RESOURCE_TYPE, type, PROPERTY_USAGE_NONE), "_set_" #name, "_get_" #name);
+	NC_PART(cpu, "NCCpu")
+	NC_PART(video, "NCVideo")
+	NC_PART(audio, "NCAudio")
+	NC_PART(cartridge, "NCCartridge")
+#undef NC_PART
 	NC_PROPERTY(PACKED_VECTOR2_ARRAY, sound, "")
 	NC_PROPERTY(PACKED_BYTE_ARRAY, pads, "")
 	NC_PROPERTY(INT, frame, "")
