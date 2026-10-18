@@ -13,8 +13,15 @@ extends SceneTree
 ## A bot plays: it runs right and tries the future (save the console,
 ## run ahead, restore) to jump only when walking on would cost a life.
 ## Frames are stepped here, three game frames per picture (20 per second),
-## so the result doesn't depend on how fast the machine is. See the README
-## for turning the frames into GIFs with ffmpeg.
+## so the result doesn't depend on how fast the machine is. The GIFs:
+##
+##   ffmpeg -framerate 20 -i OUT/f%04d.png -vf "scale=720:-1:flags=lanczos,
+##     split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];
+##     [b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle"
+##     docs/images/console.gif
+##   ffmpeg -framerate 20 -i OUT/f%04d.png -vf "scale=480:360:flags=neighbor,
+##     split[a][b];[a]palettegen=max_colors=32[p];[b][p]paletteuse=dither=none"
+##     docs/images/hopper.gif
 
 var c: NConsole
 var sym := {}
