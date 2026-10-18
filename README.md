@@ -49,15 +49,8 @@ godot --headless --path . -s addons/nconsole/tests/run_tests.gd
 godot --path .                          # the console on a table
 ```
 
-## Continuous integration
-
-`.github/workflows/ci.yml` builds the extension for Linux (x86_64),
-Windows (x86_64) and macOS (universal), debug and release, and runs the
-tests on Linux with Godot 4.7.2. Pushing a tag `v*` also publishes a
-release with the addon ready to unpack.
-
 ## Contributing and the Use of AI Tools
 
-We welcome both manually written pull requests and contributions made with the help of AI coding tools — NConsole itself was developed with their assistance. The requirements are the same as for any other code: you should understand exactly what you're changing and why, be able to explain your changes during code review, and make sure they work as intended.
+We welcome both manually written pull requests and contributions made with the help of AI coding tools — NConsole itself was developed with their assistance. The requirements are the same as for any other code: you should understand exactly what you're changing and why, be able to explain your changes during code review, and make sure they work as intended. CI builds the extension for Linux, Windows and macOS and runs the tests on every pull request.
 
 Disclosing the use of AI is entirely optional. I'm too lazy to check whether AI was used to create a pull request. I only disclose AI assistance in my own commits for the sake of transparency.
